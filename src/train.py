@@ -4,7 +4,7 @@ import os
 import logging
 import config
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -23,15 +23,16 @@ def main():
     param_grid = {
         'n_estimators': [50, 100],
         'max_depth': [5, 10, None],
-        'min_samples_split': [2, 5]
+        'min_samples_split': [2, 5, 10]
     }
 
+    tscv = TimeSeriesSplit(n_splits=5)
     logging.info("Starting GridSearchCV (Hyperparameter tuning)...")
     grid_search = GridSearchCV(
         estimator=base_model,
         param_grid=param_grid,
-        cv=3,
-        scoring='f1',
+        cv=tscv,
+        scoring='average_precision',
         n_jobs=-1,
         verbose=1
     )

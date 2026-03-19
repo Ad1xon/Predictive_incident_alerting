@@ -5,13 +5,13 @@ import random
 
 def generate_synthetic_timeseries(length=3000, num_incidents=10):
     t = np.arange(length)
-    base_signal = np.sin(2 * np.pi * t / 100) * 10
-    noise = np.random.normal(0, 1.0, length)
+    base_signal = np.sin(2 * np.pi * t / 1440) * 10 + 50
+    noise = np.random.normal(0, 2.0, length)
 
     series = base_signal + noise
     labels = np.zeros(length, dtype=int)
 
-    incident_types = ["spike", "variance_drop"]
+    incident_types = ["traffic_spike", "resource_saturation"]
     available_indices = list(range(150, length - 150))
 
     for _ in range(num_incidents):
@@ -26,22 +26,17 @@ def generate_synthetic_timeseries(length=3000, num_incidents=10):
 
         precursor_len = 20
 
-        if inc_type == "spike":
-            # simulate increasing vibrations
+        if inc_type == "traffic_spike":
             for i in range(precursor_len):
                 idx = start - precursor_len + i
-                series[idx] += np.random.normal(0, 1.5 * (i / precursor_len)) + (i / precursor_len) * 2
+                series[idx] += np.random.normal(0, 5 * (i / precursor_len))
+            series[start:end] += random.uniform(30, 50) + np.random.normal(0, 5, end - start)
 
-            spike_power = random.uniform(10, 20)
-            series[start:end] += spike_power + np.random.normal(0, 2, end - start)
-
-        elif inc_type == "variance_drop":
-            # heavy rattling before sensor freeze
+        elif inc_type == "resource_saturation":
             for i in range(precursor_len):
                 idx = start - precursor_len + i
-                series[idx] += np.random.normal(0, 3 * (i / precursor_len))
-
-            series[start:end] = np.random.normal(0, 0.2, end - start)
+                series[idx] += (i / precursor_len) * 15
+            series[start:end] = np.clip(series[start:end] + 40, a_min=None, a_max=100)
 
         available_indices = [idx for idx in available_indices if idx < start - 40 or idx > end + 40]
 

@@ -14,7 +14,7 @@ MODELS_DIR = 'models/'
 MODEL_PATH = os.path.join(MODELS_DIR, 'predictive_model.pkl')
 
 FEATURE_NAMES = [
-    'Short_Mean', 'Short_Std', 'Short_Max', 'Short_Min', 'Short_Trend',
-    'Long_Mean', 'Long_Std', 'Long_Max', 'Long_Min', 'Long_Trend',
-    'Variance_Ratio'
+    'Short_Mean', 'Short_p90', 'Short_p99', 'Short_Min', 'Short_Trend',
+    'Long_Mean', 'Long_p90', 'Long_p99', 'Long_Min', 'Long_Trend',
+    'Variance_Ratio', 'Mean_Ratio'
 ]
