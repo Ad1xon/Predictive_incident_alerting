@@ -1,14 +1,23 @@
 import numpy as np
 import joblib
+import os
+import logging
+import config
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
 
-def main():
-    print("Loading datasets from /data/...")
-    X_train = np.load("data/X_train.npy")
-    y_train = np.load("data/y_train.npy")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    print("Initializing base Random Forest model and parameter grid...")
+def main():
+    logging.info("Loading datasets...")
+    try:
+        X_train = np.load(os.path.join(config.DATA_DIR, 'X_train.npy'))
+        y_train = np.load(os.path.join(config.DATA_DIR, 'y_train.npy'))
+    except FileNotFoundError:
+        logging.error("Data not found! Run prepare_data.py first.")
+        return
+
+    logging.info("Initializing Random Forest model and parameter grid...")
     base_model = RandomForestClassifier(random_state=42, class_weight='balanced')
 
     param_grid = {
@@ -17,7 +26,7 @@ def main():
         'min_samples_split': [2, 5]
     }
 
-    print("Starting GridSearchCV for hyperparameter tuning...")
+    logging.info("Starting GridSearchCV (Hyperparameter tuning)...")
     grid_search = GridSearchCV(
         estimator=base_model,
         param_grid=param_grid,
@@ -28,12 +37,12 @@ def main():
     )
 
     grid_search.fit(X_train, y_train)
-    print(f"Best parameters found: {grid_search.best_params_}")
+    logging.info(f"Best parameters found: {grid_search.best_params_}")
 
-    print("Saving the optimized model to /models/...")
+    logging.info("Saving optimized model...")
     best_model = grid_search.best_estimator_
-    joblib.dump(best_model, 'models/predictive_model.pkl')
-    print("Model training and tuning complete.")
+    joblib.dump(best_model, config.MODEL_PATH)
+    logging.info("Model training complete.")
 
 if __name__ == "__main__":
     main()

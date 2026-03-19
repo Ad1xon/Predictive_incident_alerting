@@ -1,36 +1,41 @@
 import os
 import numpy as np
+import logging
+import config
 from generate_synthetic_timeseries import generate_synthetic_timeseries
 from create_sliding_window import create_predictive_sliding_window
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 def main():
-    os.makedirs('data', exist_ok=True)
-    os.makedirs('models', exist_ok=True)
+    logging.info("Creating directories...")
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+    os.makedirs(config.MODELS_DIR, exist_ok=True)
 
-    print("Generating synthetic data...")
-    t, series, labels = generate_synthetic_timeseries(length=3000, num_incidents=15)
+    logging.info("Generating synthetic data...")
+    t, series, labels = generate_synthetic_timeseries(length=config.SERIES_LENGTH, num_incidents=config.NUM_INCIDENTS)
 
-    W, H = 20, 10
-    print(f"Applying sliding window (W={W}, H={H})...")
-    X, y = create_predictive_sliding_window(series, labels, window_size=W, horizon=H)
+    logging.info(f"Applying sliding window (W={config.WINDOW_SIZE}, H={config.HORIZON})...")
+    X, y = create_predictive_sliding_window(series, labels, window_size=config.WINDOW_SIZE, horizon=config.HORIZON)
 
     split_index = int(len(X) * 0.7)
     X_train, X_test = X[:split_index], X[split_index:]
     y_train, y_test = y[:split_index], y[split_index:]
 
-    test_start_index = split_index + W
+    test_start_index = split_index + config.WINDOW_SIZE
     t_test = t[test_start_index: test_start_index + len(y_test)]
     series_test = series[test_start_index: test_start_index + len(y_test)]
 
-    print("Saving datasets to /data/ directory...")
-    np.save('data/X_train.npy', X_train)
-    np.save('data/X_test.npy', X_test)
-    np.save('data/y_train.npy', y_train)
-    np.save('data/y_test.npy', y_test)
-    np.save('data/t_test.npy', t_test)
-    np.save('data/series_test.npy', series_test)
-    print("Data preparation complete.")
+    logging.info("Saving datasets...")
+    np.save(os.path.join(config.DATA_DIR, 'X_train.npy'), X_train)
+    np.save(os.path.join(config.DATA_DIR, 'X_test.npy'), X_test)
+    np.save(os.path.join(config.DATA_DIR, 'y_train.npy'), y_train)
+    np.save(os.path.join(config.DATA_DIR, 'y_test.npy'), y_test)
+    np.save(os.path.join(config.DATA_DIR, 't_test.npy'), t_test)
+    np.save(os.path.join(config.DATA_DIR, 'series_test.npy'), series_test)
+
+    logging.info("Data preparation complete.")
 
 
 if __name__ == "__main__":

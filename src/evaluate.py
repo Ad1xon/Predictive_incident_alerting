@@ -1,9 +1,14 @@
 import numpy as np
 import joblib
-import matplotlib.pyplot as plt
+import os
+import logging
+import config
+from visualization import plot_predictions, plot_feature_importances
 from sklearn.metrics import classification_report
 
-def apply_alarm_cooldown(y_pred, cooldown_steps=25):
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def apply_alarm_cooldown(y_pred, cooldown_steps):
     filtered_pred = np.copy(y_pred)
     cooldown_counter = 0
 
@@ -16,63 +21,32 @@ def apply_alarm_cooldown(y_pred, cooldown_steps=25):
 
     return filtered_pred
 
+
 def main():
-    print("Loading model and test datasets...")
-    model = joblib.load('models/predictive_model.pkl')
-    X_test = np.load('data/X_test.npy')
-    y_test = np.load('data/y_test.npy')
-    t_test = np.load('data/t_test.npy')
-    series_test = np.load('data/series_test.npy')
+    logging.info("Loading model and test datasets...")
+    try:
+        model = joblib.load(config.MODEL_PATH)
+        X_test = np.load(os.path.join(config.DATA_DIR, 'X_test.npy'))
+        y_test = np.load(os.path.join(config.DATA_DIR, 'y_test.npy'))
+        t_test = np.load(os.path.join(config.DATA_DIR, 't_test.npy'))
+        series_test = np.load(os.path.join(config.DATA_DIR, 'series_test.npy'))
+    except FileNotFoundError:
+        logging.error("Missing files! Run prepare_data.py and train.py first.")
+        return
 
-    print("Generating raw predictions...")
+    logging.info("Generating predictions and applying cooldown logic...")
     y_pred_raw = model.predict(X_test)
+    y_pred_filtered = apply_alarm_cooldown(y_pred_raw, config.COOLDOWN_STEPS)
 
-    y_pred_filtered = apply_alarm_cooldown(y_pred_raw, cooldown_steps=25)
+    report = classification_report(y_test, y_pred_filtered, labels=[0, 1], target_names=["Normal (0)", "Incident (1)"])
+    logging.info(f"\n--- CLASSIFICATION REPORT (Test Set) ---\n{report}")
 
-    print("\nCLASSIFICATION REPORT (Filtered)")
-    print(classification_report(y_test, y_pred_filtered, labels=[0, 1], target_names=["Normal", "Incident"]))
+    logging.info("Generating charts...")
+    plot_predictions(t_test, series_test, y_test, y_pred_filtered)
+    plot_feature_importances(model, config.FEATURE_NAMES)
 
-    print("\nGenerating prediction chart...")
-    plt.figure(figsize=(15, 5))
-    plt.plot(t_test, series_test, label='Sensor Signal', color='blue', alpha=0.6)
+    logging.info("Evaluation complete.")
 
-    plt.fill_between(t_test, series_test.min() - 5, series_test.max() + 5,
-                     where=(y_test == 1), color='red', alpha=0.3, label='Actual Incident (Target Horizon)')
-
-    pred_incidents_t = t_test[y_pred_filtered == 1]
-    pred_incidents_val = series_test[y_pred_filtered == 1]
-
-    if len(pred_incidents_t) > 0:
-        plt.scatter(pred_incidents_t, pred_incidents_val, color='orange', edgecolor='black',
-                    s=40, label='Model Alarm', zorder=5)
-
-    plt.title('Predictive Maintenance: Alerts vs Actual Incidents (Debounced)')
-    plt.xlabel('Time Steps')
-    plt.ylabel('Sensor Value')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-    print("Generating feature importances chart...")
-    feature_names = ['Mean', 'Standard Deviation (Std)', 'Maximum', 'Minimum', 'Difference (Trend)']
-    importances = model.feature_importances_
-    indices = np.argsort(importances)[::-1]
-
-    sorted_names = [feature_names[i] for i in indices]
-    sorted_importances = importances[indices]
-
-    plt.figure(figsize=(10, 6))
-    plt.title('Feature Importances')
-    bars = plt.bar(range(len(importances)), sorted_importances, color='teal', align='center')
-    plt.xticks(range(len(importances)), sorted_names, rotation=15)
-    plt.ylabel('Relative Importance (Sum = 1.0)')
-
-    for bar in bars:
-        yval = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width() / 2, yval + 0.01, round(yval, 3), ha='center', va='bottom')
-
-    plt.tight_layout()
-    plt.show()
 
 if __name__ == "__main__":
     main()
