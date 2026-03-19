@@ -2,8 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_predictions(t_test, series_test, y_test, y_pred_filtered,
-                     title="Predictive Maintenance: Alerts vs Actual Incidents (Debounced)"):
+def plot_predictions(t_test, series_test, y_test, y_pred_filtered,title="Predictive Maintenance: Alerts vs Actual Incidents (Debounced)"):
     plt.figure(figsize=(15, 5))
     plt.plot(t_test, series_test, label='Sensor Signal', color='blue', alpha=0.6)
 

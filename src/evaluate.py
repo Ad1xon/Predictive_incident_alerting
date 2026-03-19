@@ -39,7 +39,7 @@ def main():
     y_pred_filtered = apply_alarm_cooldown(y_pred_raw, config.COOLDOWN_STEPS)
 
     report = classification_report(y_test, y_pred_filtered, labels=[0, 1], target_names=["Normal (0)", "Incident (1)"])
-    logging.info(f"\n--- CLASSIFICATION REPORT (Test Set) ---\n{report}")
+    logging.info(f"\nCLASSIFICATION REPORT (Test Set)\n{report}")
 
     logging.info("Generating charts...")
     plot_predictions(t_test, series_test, y_test, y_pred_filtered)

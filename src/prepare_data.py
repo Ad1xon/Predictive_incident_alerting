@@ -3,7 +3,7 @@ import numpy as np
 import logging
 import config
 from generate_synthetic_timeseries import generate_synthetic_timeseries
-from create_sliding_window import create_predictive_sliding_window
+from create_sliding_window import create_multiscale_sliding_window
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -16,14 +16,19 @@ def main():
     logging.info("Generating synthetic data...")
     t, series, labels = generate_synthetic_timeseries(length=config.SERIES_LENGTH, num_incidents=config.NUM_INCIDENTS)
 
-    logging.info(f"Applying sliding window (W={config.WINDOW_SIZE}, H={config.HORIZON})...")
-    X, y = create_predictive_sliding_window(series, labels, window_size=config.WINDOW_SIZE, horizon=config.HORIZON)
+    logging.info(f"Applying multi-scale sliding window (Short={config.SHORT_WINDOW}, Long={config.LONG_WINDOW}, H={config.HORIZON})...")
+    X, y = create_multiscale_sliding_window(
+        series, labels,
+        short_w=config.SHORT_WINDOW,
+        long_w=config.LONG_WINDOW,
+        horizon=config.HORIZON
+    )
 
     split_index = int(len(X) * 0.7)
     X_train, X_test = X[:split_index], X[split_index:]
     y_train, y_test = y[:split_index], y[split_index:]
 
-    test_start_index = split_index + config.WINDOW_SIZE
+    test_start_index = split_index + config.LONG_WINDOW
     t_test = t[test_start_index: test_start_index + len(y_test)]
     series_test = series[test_start_index: test_start_index + len(y_test)]
 
