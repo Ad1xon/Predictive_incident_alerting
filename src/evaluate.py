@@ -3,21 +3,34 @@ import joblib
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report
 
+def apply_alarm_cooldown(y_pred, cooldown_steps=25):
+    filtered_pred = np.copy(y_pred)
+    cooldown_counter = 0
+
+    for i in range(1, len(filtered_pred)):
+        if cooldown_counter > 0:
+            filtered_pred[i] = 0
+            cooldown_counter -= 1
+        elif filtered_pred[i - 1] == 1 and filtered_pred[i] == 0:
+            cooldown_counter = cooldown_steps
+
+    return filtered_pred
 
 def main():
     print("Loading model and test datasets...")
     model = joblib.load('models/predictive_model.pkl')
     X_test = np.load('data/X_test.npy')
     y_test = np.load('data/y_test.npy')
-
     t_test = np.load('data/t_test.npy')
     series_test = np.load('data/series_test.npy')
 
-    print("Making predictions...")
-    y_pred = model.predict(X_test)
+    print("Generating raw predictions...")
+    y_pred_raw = model.predict(X_test)
 
-    print("\nCLASSIFICATION REPORT")
-    print(classification_report(y_test, y_pred, labels=[0, 1], target_names=["Normal", "Incident"]))
+    y_pred_filtered = apply_alarm_cooldown(y_pred_raw, cooldown_steps=25)
+
+    print("\nCLASSIFICATION REPORT (Filtered)")
+    print(classification_report(y_test, y_pred_filtered, labels=[0, 1], target_names=["Normal", "Incident"]))
 
     print("\nGenerating prediction chart...")
     plt.figure(figsize=(15, 5))
@@ -26,14 +39,14 @@ def main():
     plt.fill_between(t_test, series_test.min() - 5, series_test.max() + 5,
                      where=(y_test == 1), color='red', alpha=0.3, label='Actual Incident (Target Horizon)')
 
-    pred_incidents_t = t_test[y_pred == 1]
-    pred_incidents_val = series_test[y_pred == 1]
+    pred_incidents_t = t_test[y_pred_filtered == 1]
+    pred_incidents_val = series_test[y_pred_filtered == 1]
 
     if len(pred_incidents_t) > 0:
         plt.scatter(pred_incidents_t, pred_incidents_val, color='orange', edgecolor='black',
                     s=40, label='Model Alarm', zorder=5)
 
-    plt.title('Predictive Maintenance: Alerts vs Actual Incidents (Raw Predictions)')
+    plt.title('Predictive Maintenance: Alerts vs Actual Incidents (Debounced)')
     plt.xlabel('Time Steps')
     plt.ylabel('Sensor Value')
     plt.legend()
