@@ -19,7 +19,7 @@ def plot_predictions(t_test, series_test, y_test, y_pred_filtered,title="Predict
     plt.title(title)
     plt.xlabel('Time Steps')
     plt.ylabel('Sensor Value')
-    plt.legend()
+    plt.legend(loc='upper right')
     plt.tight_layout()
     plt.show()
 

@@ -17,17 +17,18 @@ def main():
         logging.error("Data not found! Run prepare_data.py first.")
         return
 
-    logging.info("Initializing Random Forest model and parameter grid...")
+    logging.info("Initializing Random Forest model...")
     base_model = RandomForestClassifier(random_state=42, class_weight='balanced')
 
     param_grid = {
-        'n_estimators': [50, 100],
+        'n_estimators': [100, 200],
         'max_depth': [5, 10, None],
         'min_samples_split': [2, 5, 10]
     }
 
-    tscv = TimeSeriesSplit(n_splits=5)
-    logging.info("Starting GridSearchCV (Hyperparameter tuning)...")
+    tscv = TimeSeriesSplit(n_splits=3)
+
+    logging.info("Starting GridSearchCV (Optimizing for PR-AUC)...")
     grid_search = GridSearchCV(
         estimator=base_model,
         param_grid=param_grid,

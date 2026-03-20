@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import random
 
 
+# np.random.seed(42)
+# random.seed(42)
+
 def generate_synthetic_timeseries(length=3000, num_incidents=10):
     t = np.arange(length)
     base_signal = np.sin(2 * np.pi * t / 1440) * 10 + 50

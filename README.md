@@ -4,6 +4,37 @@ This project implements a machine learning-based alerting system designed to pre
 
 ---
 
+
+## Quick Start / How to Run
+
+This project is broken down into a modular, sequential pipeline. To run the full pipeline from scratch, execute the following scripts in order:
+
+**1. Prepare the Data**
+
+Generates the synthetic cloud metrics, extracts the multiscale sliding-window features, and creates the train/test splits.
+```bash
+python prepare_data.py
+```
+(Note: This will automatically create the data/ and models/ directories.)
+
+**2. Train the Model**
+
+Loads the training data, performs hyperparameter tuning using TimeSeriesSplit to prevent temporal leakage, and saves the optimized Gradient Boosting/Random Forest model.
+
+```bash
+python train.py
+```
+
+**3. Evaluate the Model**
+
+Loads the test set and the saved model, calculates the optimal high-precision threshold, and outputs the classification report along with the feature importance and prediction plots.
+
+```bash
+python evaluate.py
+```
+
+-----
+
 ## Problem Formulation
 
 The goal is to predict whether an anomaly or threshold breach will occur within a future horizon of `H` time steps, based on the historical context of the preceding `W` time steps. 
@@ -33,7 +64,7 @@ Raw time-domain statistics (like Max/Min) are often insufficient for noisy cloud
 
 ### Model Selection
 The core model is a **Random Forest Classifier**.
-* **Why Random Forest?** It is highly robust to unscaled data and non-linear feature interactions, making it excellent for identifying complex threshold behaviors in tabular time-series features.
+* **Why Random Forest over Gradient Boosting (XGBoost)?** During optimization, an XGBoost architecture was tested. However, on this specific dataset (small data size, high simulated noise, rare anomalies), XGBoost proved prone to overfitting the training noise and crashing on anomaly-free cross-validation folds. Random Forest natively smoothed over the noise and provided vastly superior robustness. In the interest of production stability, the simpler Random Forest was selected.
 * **Preventing Temporal Leakage:** Hyperparameter tuning (`GridSearchCV`) utilizes `TimeSeriesSplit` rather than standard K-Fold cross-validation. This strictly enforces chronological training boundaries, ensuring the model never "peeks" at future data.
 * **Optimizing for PR-AUC:** The model is optimized using `average_precision` rather than standard F1-score. This forces the algorithm to maximize Area Under the Precision-Recall Curve, which is critical for imbalanced anomaly detection.
 
@@ -50,12 +81,14 @@ In cloud operations, false positives cause "alert fatigue," leading engineers to
 
 ## Results & Analysis
 
+*Note: Because the time-series data and system noise are generated synthetically, exact evaluation metrics may fluctuate slightly (typically between 0.90 and 0.95 F1) on subsequent runs unless the random seed is fixed.*
+
 The model was evaluated on a chronologically held-out test set. 
 
-**Key Metrics (at optimal dynamic threshold of 0.44):**
-* **Precision:** 0.93 (93% of alerts fired are genuine impending incidents)
-* **Recall:** 0.89 (Successfully caught 89% of incident windows)
-* **F1-Score:** 0.91
+**Key Metrics (at optimal dynamic threshold of 0.32):**
+* **Precision:** 0.94 (94% of alerts fired are genuine impending incidents)
+* **Recall:** 0.94 (Successfully caught 94% of incident windows)
+* **F1-Score:** 0.94
 
 ![Evaluation Metrics](images/eval_metrics.png)
 *Output of the classification report and dynamic threshold calculation.*
@@ -65,38 +98,9 @@ The plot below demonstrates the model successfully predicting both sudden spikes
 
 ![Model Predictions](images/model_predictions.png)
 
-### Feature Importance & Future Optimizations
+### Implemented "Smart" Feature Pruning
 An analysis of the Random Forest feature importances reveals that short-term SRE features (`Short_p90`, `Short_Trend`, `Short_p99`) and contextual ratios (`Mean_Ratio`) dominate the decision-making process. 
 
 ![Feature Importances](images/feature_importance.png)
 
-**Next Steps / Production Readiness:** The absolute long-term statistics (`Long_Min`, `Long_p99`, `Long_Mean`) contributed almost nothing to the model's predictive power. In a production pipeline, these low-performing features should be pruned to reduce the computational overhead and latency of the real-time inference engine.
-
-Markdown
-## Quick Start / How to Run
-
-This project is broken down into a modular, sequential pipeline. To run the full pipeline from scratch, execute the following scripts in order:
-
-**1. Prepare the Data**
-
-Generates the synthetic cloud metrics, extracts the multiscale sliding-window features, and creates the train/test splits.
-```bash
-python prepare_data.py
-```
-(Note: This will automatically create the data/ and models/ directories.)
-
-**2. Train the Model**
-
-Loads the training data, performs hyperparameter tuning using TimeSeriesSplit to prevent temporal leakage, and saves the optimized Gradient Boosting/Random Forest model.
-
-```bash
-python train.py
-```
-
-**3. Evaluate the Model**
-
-Loads the test set and the saved model, calculates the optimal high-precision threshold, and outputs the classification report along with the feature importance and prediction plots.
-
-```bash
-python evaluate.py
-```
+To optimize the inference pipeline for production, dead-weight absolute long-term statistics (like `Long_Min` and `Long_p90`) were aggressively pruned. However, `Long_Mean` was strategically retained despite a lower Gini importance score, as empirical testing proved it acts as a critical anchor for the model to understand where it is within the daily diurnal cycle.
