@@ -25,7 +25,7 @@ def create_multiscale_sliding_window(series, labels, short_w=20, long_w=100, hor
         long_features = [
             np.mean(long_window),
         ]
-        # variance_ratio = np.std(short_window) / (np.std(long_window) + 1e-5)
+
         mean_ratio = np.mean(short_window) / (np.mean(long_window) + 1e-5)
 
         combined_features = short_features + long_features + [mean_ratio]

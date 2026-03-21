@@ -7,7 +7,7 @@ import config
 np.random.seed(config.SEED)
 random.seed(config.SEED)
 
-def generate_synthetic_timeseries(length=3000, num_incidents=10):
+def generate_synthetic_timeseries(length=config.SERIES_LENGTH, num_incidents=config.NUM_INCIDENTS):
     t = np.arange(length)
     base_signal = np.sin(2 * np.pi * t / 1440) * 10 + 50
     noise = np.random.normal(0, 2.0, length)

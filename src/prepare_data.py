@@ -4,6 +4,7 @@ import logging
 import config
 from generate_synthetic_timeseries import generate_synthetic_timeseries
 from create_sliding_window import create_multiscale_sliding_window
+from collections import Counter
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -23,6 +24,8 @@ def main():
         long_w=config.LONG_WINDOW,
         horizon=config.HORIZON
     )
+
+    logging.info(f"Full Dataset Class distribution: {Counter(y)}")
 
     split_index = int(len(X) * 0.7)
     X_train, X_test = X[:split_index], X[split_index:]

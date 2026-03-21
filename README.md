@@ -40,11 +40,12 @@ Loads the test set and the saved model, calculates the optimal high-precision th
 ```bash
 python src/evaluate.py
 ```
-*(Note: This script will automatically create a `results/` directory in your root folder, saving the classification report and prediction plots there).*
+*(Note: This script will automatically create a `results/` directory containing the classification report, confusion matrix, PR curve, and prediction plots).*
+
 
 **4. Run Unit Tests**
 
-Execute the test suite to validate the custom sliding-window math and alert debouncing logic.
+Execute the modular `pytest` suite to validate the custom sliding-window math, operational debouncing logic, threshold edge cases, and end-to-end pipeline stability.
 
 ```bash
 pytest tests/
@@ -69,6 +70,8 @@ To train and evaluate the model, a synthetic cloud telemetry dataset was generat
 1.  **Traffic Spikes:** Sudden, high-variance leaps in latency or utilization.
 2.  **Resource Saturation:** A gradual climb that hits a strict mathematical ceiling (e.g., 100% CPU or Memory utilization).
 
+*(Note: Data generation and model initialization utilize a globally locked random seed (`config.SEED = 101`) to guarantee absolute pipeline reproducibility).*
+
 ---
 
 ## Modeling Choices & Feature Engineering
@@ -80,10 +83,11 @@ Raw time-domain statistics (like Max/Min) are often insufficient for noisy cloud
 * **Contextual Ratios:** Calculates the ratio of the Short Window mean against the Long Window mean (`Mean_Ratio`). This provides the model with localized context, helping it differentiate between a problematic spike and a normal peak-hours traffic wave.
 
 ### Model Selection
-The core model is a **Random Forest Classifier**.
-* **Why Random Forest over Gradient Boosting (XGBoost)?** During optimization, an XGBoost architecture was tested. However, on this specific dataset (small data size, high simulated noise, rare anomalies), XGBoost proved prone to overfitting the training noise and crashing on anomaly-free cross-validation folds. Random Forest natively smoothed over the noise and provided vastly superior robustness. In the interest of production stability, the simpler Random Forest was selected.
-* **Preventing Temporal Leakage:** Hyperparameter tuning (`GridSearchCV`) utilizes `TimeSeriesSplit` rather than standard K-Fold cross-validation. This strictly enforces chronological training boundaries, ensuring the model never "peeks" at future data.
-* **Optimizing for PR-AUC:** The model is optimized using `average_precision` rather than standard F1-score. This forces the algorithm to maximize Area Under the Precision-Recall Curve, which is critical for imbalanced anomaly detection.
+The core model is a **Random Forest Classifier**, optimized for PR-AUC.
+
+  * **Why Random Forest over Gradient Boosting (XGBoost)?** During optimization, an XGBoost architecture was tested. However, on this dataset, XGBoost proved prone to overfitting the training noise and crashing on anomaly-free cross-validation folds. Random Forest natively smoothed over the noise and provided vastly superior robustness.
+  * **Establishing a Baseline:** Before deploying the Random Forest, a standard `LogisticRegression` model was evaluated using cross-validation. The Random Forest outperformed the linear baseline in PR-AUC, confirming that the multiscale features contain non-linear interactions requiring a tree-based approach.
+  * **Preventing Temporal Leakage:** Hyperparameter tuning utilizes `TimeSeriesSplit` rather than standard K-Fold CV. This strictly enforces chronological training boundaries, ensuring the model never "peeks" at future data.
 
 ---
 
@@ -93,39 +97,60 @@ In cloud operations, false positives cause "alert fatigue," leading engineers to
 
 * **Dynamic Alert Thresholds:** Instead of using a default `0.5` probability threshold, the evaluation script (`src/evaluate.py`) analyzes the Precision-Recall curve to find the lowest possible probability threshold that guarantees a target precision of ~0.90. This extracts the maximum possible recall while strictly enforcing reliability.
 * **Alarm Cooldowns (Debouncing):** To prevent alert spam during a continuous incident, an `apply_alarm_cooldown` function silences sequential model triggers for a set number of steps after the initial alert fires.
+* **Area Under the Curve:** The model is evaluated globally using **PR-AUC** and **ROC-AUC** to confirm its robustness across all possible decision boundaries prior to threshold selection.
 
 ---
 
 ## Results & Analysis
 
-*Note: Because the time-series data and system noise are generated synthetically, exact evaluation metrics may fluctuate slightly (typically between 0.90 and 0.95 F1) on subsequent runs unless the random seed is fixed.*
+The model was evaluated on a chronologically held-out test set (30% of total data).
 
-The model was evaluated on a chronologically held-out test set. 
+**Global ML Metrics:**
+* **PR-AUC:** 0.965
+* **ROC-AUC:** 0.977
 
-**Key Metrics (at optimal dynamic threshold of 0.32):**
-* **Precision:** 0.89 (89% of alerts fired are genuine impending incidents)
-* **Recall:** 1.00 (Successfully caught 100% of incident windows)
-* **F1-Score:** 0.94
-
-**Classification Report**
+**Raw Classification Report (Optimal Threshold: 0.22)**
 
 | Class | Precision | Recall | F1-Score | Support |
 | :--- | :---: | :---: | :---: | :---: |
-| **Normal** | 1.00 | 0.90 | 0.95 | 478 |
-| **Incident** | 0.89 | 1.00 | 0.94 | 390 |
+| **Normal** | 0.98 | 0.97 | 0.98 | 3469 |
+| **Incident** | 0.90 | 0.93 | 0.92 | 998 |
 | | | | | |
-| **Accuracy** | | | **0.94** | 868 |
-| **Macro Avg** | 0.95 | 0.95 | 0.94 | 868 |
-| **Weighted Avg** | 0.95 | 0.94 | 0.94 | 868 |
+| **Accuracy** | | | **0.96** | 4467 |
+| **Macro Avg** | 0.94 | 0.95 | 0.95 | 4467 |
+| **Weighted Avg** | 0.96 | 0.96 | 0.96 | 4467 |
+
+
+
+*(Note: While the model achieves exceptional raw recall during incidents, the operational debouncing filter is applied downstream to silence redundant pager alerts during continuous incident windows, as visualized in the prediction plots).*
+
+
+| Confusion Matrix | Precision-Recall Curve |
+| :---: | :---: |
+| <img src="images/confusion_matrix.png" height="300"> | <img src="images/pr_curve.png" height="300"> |
+
+<p align="center"><i>(Left: The Confusion Matrix showing absolute predictions on the held-out test set. Right: The PR-Curve demonstrating the dynamic threshold selection (Red Dot) to guarantee the 0.90 precision floor).</i></p>
+
+*(Left: The Confusion Matrix showing absolute predictions on the held-out test set. Right: The PR-Curve demonstrating the dynamic threshold selection (Red Dot) to guarantee the 0.90 precision floor).*
 
 ### Visualizing the Alerts
 The plot below demonstrates the model successfully predicting both sudden spikes and slow resource saturation anomalies, while ignoring the normal diurnal wave pattern and baseline noise.
 
-![Model Predictions](images/model_predictions.png)
+![Model Predictions](images/predictions_plot.png)
 
 ### Implemented "Smart" Feature Pruning
 An analysis of the Random Forest feature importances reveals that short-term SRE features (`Short_p90`, `Short_Trend`, `Short_p99`) and contextual ratios (`Mean_Ratio`) dominate the decision-making process. 
 
-![Feature Importances](images/feature_importance.png)
+![Feature Importances](images/feature_importances.png)
 
 To optimize the inference pipeline for production, dead-weight absolute long-term statistics (like `Long_Min` and `Long_p90`) were aggressively pruned. However, `Long_Mean` was strategically retained despite a lower Gini importance score, as empirical testing proved it acts as a critical anchor for the model to understand where it is within the daily diurnal cycle.
+
+## Testing & CI/CD Readiness
+
+The repository includes a comprehensive `pytest` module (`tests/test_pipeline.py`) designed for CI/CD pipeline integration. It strictly validates:
+
+  * Data generator output distributions.
+  * Matrix shapes and forward-looking anomaly label logic.
+  * Edge-case fallbacks for the dynamic thresholding engine.
+  * End-to-end (E2E) smoke testing of the complete `Generate -> Window -> Train -> Evaluate` pipeline.
+

@@ -4,7 +4,8 @@ import os
 import logging
 import config
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, cross_val_score
+from sklearn.linear_model import LogisticRegression
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -17,16 +18,21 @@ def main():
         logging.error("Data not found! Run prepare_data.py first.")
         return
 
+    tscv = TimeSeriesSplit(n_splits=config.CV_FOLDS)
+
+    logging.info("Training Logistic Regression baseline...")
+    lr_model = LogisticRegression(max_iter=1000)
+    lr_scores = cross_val_score(lr_model, X_train, y_train, cv=tscv, scoring='average_precision')
+    logging.info(f"LR Baseline PR-AUC: {np.mean(lr_scores):.4f}")
+
     logging.info("Initializing Random Forest model...")
-    base_model = RandomForestClassifier(random_state=42, class_weight='balanced')
+    base_model = RandomForestClassifier(random_state=config.SEED, class_weight='balanced')
 
     param_grid = {
         'n_estimators': [100, 200],
         'max_depth': [5, 10, None],
         'min_samples_split': [2, 5, 10]
     }
-
-    tscv = TimeSeriesSplit(n_splits=3)
 
     logging.info("Starting GridSearchCV (Optimizing for PR-AUC)...")
     grid_search = GridSearchCV(

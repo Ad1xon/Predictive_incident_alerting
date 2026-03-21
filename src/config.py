@@ -1,14 +1,17 @@
 import os
 
 SEED = 101
-SERIES_LENGTH = 3000
-NUM_INCIDENTS = 15
+SERIES_LENGTH = 15_000
+NUM_INCIDENTS = 50
 
 SHORT_WINDOW = 20
 LONG_WINDOW = 100
 HORIZON = 10
 
 COOLDOWN_STEPS = 25
+
+TARGET_PRECISION = 0.90
+CV_FOLDS = 5
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
