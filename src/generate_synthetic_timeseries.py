@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+import config
 
 
-# np.random.seed(42)
-# random.seed(42)
+np.random.seed(config.SEED)
+random.seed(config.SEED)
 
 def generate_synthetic_timeseries(length=3000, num_incidents=10):
     t = np.arange(length)

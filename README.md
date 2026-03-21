@@ -107,8 +107,16 @@ The model was evaluated on a chronologically held-out test set.
 * **Recall:** 0.94 (Successfully caught 94% of incident windows)
 * **F1-Score:** 0.94
 
-![Evaluation Metrics](images/eval_metrics.png)
-*Output of the classification report and dynamic threshold calculation.*
+**Classification Report (Optimal Threshold: 0.34)**
+
+| Class | Precision | Recall | F1-Score | Support |
+| :--- | :---: | :---: | :---: | :---: |
+| **Normal** | 1.00 | 0.90 | 0.95 | 478 |
+| **Incident** | 0.89 | 1.00 | 0.94 | 390 |
+| | | | | |
+| **Accuracy** | | | **0.94** | 868 |
+| **Macro Avg** | 0.95 | 0.95 | 0.94 | 868 |
+| **Weighted Avg** | 0.95 | 0.94 | 0.94 | 868 |
 
 ### Visualizing the Alerts
 The plot below demonstrates the model successfully predicting both sudden spikes and slow resource saturation anomalies, while ignoring the normal diurnal wave pattern and baseline noise.

@@ -1,5 +1,6 @@
 import os
 
+SEED = 101
 SERIES_LENGTH = 3000
 NUM_INCIDENTS = 15
 
