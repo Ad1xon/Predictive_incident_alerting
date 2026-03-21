@@ -103,11 +103,11 @@ In cloud operations, false positives cause "alert fatigue," leading engineers to
 The model was evaluated on a chronologically held-out test set. 
 
 **Key Metrics (at optimal dynamic threshold of 0.32):**
-* **Precision:** 0.94 (94% of alerts fired are genuine impending incidents)
-* **Recall:** 0.94 (Successfully caught 94% of incident windows)
+* **Precision:** 0.89 (89% of alerts fired are genuine impending incidents)
+* **Recall:** 1.00 (Successfully caught 100% of incident windows)
 * **F1-Score:** 0.94
 
-**Classification Report (Optimal Threshold: 0.34)**
+**Classification Report**
 
 | Class | Precision | Recall | F1-Score | Support |
 | :--- | :---: | :---: | :---: | :---: |
