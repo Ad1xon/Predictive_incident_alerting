@@ -1,0 +1,10 @@
+Optimal Threshold: 0.300
+
+              precision    recall  f1-score   support
+
+      Normal       0.93      0.97      0.95       520
+    Incident       0.96      0.88      0.92       348
+
+    accuracy                           0.94       868
+   macro avg       0.94      0.93      0.93       868
+weighted avg       0.94      0.94      0.94       868

@@ -9,28 +9,45 @@ This project implements a machine learning-based alerting system designed to pre
 
 This project is broken down into a modular, sequential pipeline. To run the full pipeline from scratch, execute the following scripts in order:
 
+### Prerequisites
+
+Ensure you have Python 3.10+ installed. Install the required dependencies:
+```bash
+pip install -r requirements.txt
+```
+
 **1. Prepare the Data**
 
 Generates the synthetic cloud metrics, extracts the multiscale sliding-window features, and creates the train/test splits.
 ```bash
-python prepare_data.py
+python src/prepare_data.py
 ```
-(Note: This will automatically create the data/ and models/ directories.)
+*(Note: This will automatically create the `data/` directory.)*
 
 **2. Train the Model**
 
-Loads the training data, performs hyperparameter tuning using TimeSeriesSplit to prevent temporal leakage, and saves the optimized Gradient Boosting/Random Forest model.
+Loads the training data, performs hyperparameter tuning using TimeSeriesSplit to prevent temporal leakage, and saves the optimized Random Forest model.
 
 ```bash
-python train.py
+python src/train.py
 ```
+*(Note: This will automatically create the `model/` directory.)*
 
 **3. Evaluate the Model**
 
 Loads the test set and the saved model, calculates the optimal high-precision threshold, and outputs the classification report along with the feature importance and prediction plots.
 
 ```bash
-python evaluate.py
+python src/evaluate.py
+```
+*(Note: This script will automatically create a `results/` directory in your root folder, saving the classification report and prediction plots there).*
+
+**4. Run Unit Tests**
+
+Execute the test suite to validate the custom sliding-window math and alert debouncing logic.
+
+```bash
+pytest tests/
 ```
 
 -----
@@ -48,7 +65,7 @@ This is formulated as a binary classification problem using a **sliding-window a
 
 ## Data Generation
 
-To train and evaluate the model, a synthetic cloud telemetry dataset was generated (`generate_synthetic_timeseries.py`). The data simulates normal diurnal (daily) traffic patterns overlayed with gaussian noise and injects two specific types of SRE incidents:
+To train and evaluate the model, a synthetic cloud telemetry dataset was generated (`src/generate_synthetic_timeseries.py`). The data simulates normal diurnal (daily) traffic patterns overlayed with gaussian noise and injects two specific types of SRE incidents:
 1.  **Traffic Spikes:** Sudden, high-variance leaps in latency or utilization.
 2.  **Resource Saturation:** A gradual climb that hits a strict mathematical ceiling (e.g., 100% CPU or Memory utilization).
 
@@ -74,7 +91,7 @@ The core model is a **Random Forest Classifier**.
 
 In cloud operations, false positives cause "alert fatigue," leading engineers to ignore pagers. Therefore, the evaluation setup strictly prioritizes **Precision**.
 
-* **Dynamic Alert Thresholds:** Instead of using a default `0.5` probability threshold, the evaluation script (`evaluate.py`) analyzes the Precision-Recall curve to find the lowest possible probability threshold that guarantees a target precision of ~0.90. This extracts the maximum possible recall while strictly enforcing reliability.
+* **Dynamic Alert Thresholds:** Instead of using a default `0.5` probability threshold, the evaluation script (`src/evaluate.py`) analyzes the Precision-Recall curve to find the lowest possible probability threshold that guarantees a target precision of ~0.90. This extracts the maximum possible recall while strictly enforcing reliability.
 * **Alarm Cooldowns (Debouncing):** To prevent alert spam during a continuous incident, an `apply_alarm_cooldown` function silences sequential model triggers for a set number of steps after the initial alert fires.
 
 ---

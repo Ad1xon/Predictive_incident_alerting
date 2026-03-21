@@ -2,12 +2,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_predictions(t_test, series_test, y_test, y_pred_filtered,title="Predictive Maintenance: Alerts vs Actual Incidents (Debounced)"):
+def plot_predictions(t_test, series_test, y_test, y_pred_filtered, title="Predictive Maintenance Alerts", save_path=None):
     plt.figure(figsize=(15, 5))
     plt.plot(t_test, series_test, label='Sensor Signal', color='blue', alpha=0.6)
 
-    plt.fill_between(t_test, series_test.min() - 5, series_test.max() + 5,
-                     where=(y_test == 1), color='red', alpha=0.3, label='Actual Incident (Target Horizon)')
+    plt.fill_between(t_test, series_test.min() - 5, series_test.max() + 5, where=(y_test == 1), color='red', alpha=0.3, label='Actual Incident (Target Horizon)')
 
     pred_incidents_t = t_test[y_pred_filtered == 1]
     pred_incidents_val = series_test[y_pred_filtered == 1]
@@ -21,10 +20,15 @@ def plot_predictions(t_test, series_test, y_test, y_pred_filtered,title="Predict
     plt.ylabel('Sensor Value')
     plt.legend(loc='upper right')
     plt.tight_layout()
-    plt.show()
+
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        plt.show()
 
 
-def plot_feature_importances(model, feature_names):
+def plot_feature_importances(model, feature_names, save_path=None):
     importances = model.feature_importances_
     indices = np.argsort(importances)[::-1]
 
@@ -42,4 +46,9 @@ def plot_feature_importances(model, feature_names):
         plt.text(bar.get_x() + bar.get_width() / 2, yval + 0.01, round(yval, 3), ha='center', va='bottom')
 
     plt.tight_layout()
-    plt.show()
+
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        plt.show()

@@ -50,6 +50,8 @@ def main():
         logging.error("Missing files. Run prepare_data.py and train.py first.")
         return
 
+    os.makedirs(config.RESULTS_DIR, exist_ok=True)
+
     y_probs = model.predict_proba(X_test)[:, 1]
 
     optimal_thresh = find_optimal_threshold(y_test, y_probs, target_precision=0.88)
@@ -61,10 +63,16 @@ def main():
     report = classification_report(y_test, y_pred_filtered, labels=[0, 1], target_names=["Normal", "Incident"])
     logging.info(f"\nCLASSIFICATION REPORT (Threshold: {optimal_thresh:.2f})\n{report}")
 
-    plot_predictions(t_test, series_test, y_test, y_pred_filtered,
-                     title=f"Predictive Maintenance: Dynamic Threshold ({optimal_thresh:.2f})")
-    plot_feature_importances(model, config.FEATURE_NAMES)
-    logging.info("Evaluation complete")
+    with open(os.path.join(config.RESULTS_DIR, 'classification_report.txt'), 'w') as f:
+        f.write(f"Optimal Threshold: {optimal_thresh:.3f}\n\n")
+        f.write(report)
+
+    plot_predictions(t_test, series_test, y_test, y_pred_filtered, title=f"Predictive Maintenance: Dynamic Threshold ({optimal_thresh:.2f})", save_path=os.path.join(
+        config.RESULTS_DIR, 'predictions_plot.png'))
+
+    plot_feature_importances(model, config.FEATURE_NAMES, save_path=os.path.join(config.RESULTS_DIR, 'feature_importances.png'))
+
+    logging.info(f"Evaluation complete")
 
 if __name__ == "__main__":
     main()

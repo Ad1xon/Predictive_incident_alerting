@@ -9,8 +9,12 @@ HORIZON = 10
 
 COOLDOWN_STEPS = 25
 
-DATA_DIR = 'data/'
-MODELS_DIR = 'models/'
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+DATA_DIR = os.path.join(ROOT_DIR, 'data')
+MODELS_DIR = os.path.join(ROOT_DIR, 'models')
+RESULTS_DIR = os.path.join(ROOT_DIR, 'results')
+
 MODEL_PATH = os.path.join(MODELS_DIR, 'predictive_model.pkl')
 
 FEATURE_NAMES = [
