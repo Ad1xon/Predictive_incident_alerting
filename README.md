@@ -48,7 +48,7 @@ python src/evaluate.py
 Execute the modular `pytest` suite to validate the custom sliding-window math, operational debouncing logic, threshold edge cases, and end-to-end pipeline stability.
 
 ```bash
-pytest tests/
+pytest tests/ -v
 ```
 
 -----
@@ -131,7 +131,6 @@ The model was evaluated on a chronologically held-out test set (30% of total dat
 
 <p align="center"><i>(Left: The Confusion Matrix showing absolute predictions on the held-out test set. Right: The PR-Curve demonstrating the dynamic threshold selection (Red Dot) to guarantee the 0.90 precision floor).</i></p>
 
-*(Left: The Confusion Matrix showing absolute predictions on the held-out test set. Right: The PR-Curve demonstrating the dynamic threshold selection (Red Dot) to guarantee the 0.90 precision floor).*
 
 ### Visualizing the Alerts
 The plot below demonstrates the model successfully predicting both sudden spikes and slow resource saturation anomalies, while ignoring the normal diurnal wave pattern and baseline noise.

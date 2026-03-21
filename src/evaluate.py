@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.typing import NDArray
 import joblib
 import os
 import logging
@@ -9,7 +10,8 @@ from sklearn.metrics import roc_auc_score, average_precision_score, classificati
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def apply_alarm_cooldown(y_pred, cooldown_steps):
+def apply_alarm_cooldown(y_pred: NDArray[np.int_], cooldown_steps: int) -> NDArray[np.int_]:
+    """Suppresses consecutive alarm predictions for a set number of steps after each initial trigger."""
     filtered_pred = np.copy(y_pred)
     cooldown_counter = 0
 
@@ -23,7 +25,8 @@ def apply_alarm_cooldown(y_pred, cooldown_steps):
     return filtered_pred
 
 
-def find_optimal_threshold(y_true, y_probs, target_precision=0.90):
+def find_optimal_threshold(y_true: NDArray[np.int_], y_probs: NDArray[np.float64], target_precision: float = 0.90) -> float:
+    """Finds the lowest probability threshold that achieves the target precision on the PR curve."""
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_probs)
     valid_idx = np.where(precisions >= target_precision)[0]
 
@@ -38,7 +41,8 @@ def find_optimal_threshold(y_true, y_probs, target_precision=0.90):
     return thresholds[best_idx]
 
 
-def main():
+def main() -> None:
+    """Evaluates the trained model on the test set with dynamic thresholding and alarm cooldown."""
     logging.info("Loading test data...")
     try:
         model = joblib.load(config.MODEL_PATH)

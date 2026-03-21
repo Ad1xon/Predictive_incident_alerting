@@ -9,7 +9,8 @@ from sklearn.linear_model import LogisticRegression
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def main():
+def main() -> None:
+    """Loads training data, performs hyperparameter tuning with TimeSeriesSplit, and saves the best Random Forest model."""
     logging.info("Loading datasets...")
     try:
         X_train = np.load(os.path.join(config.DATA_DIR, 'X_train.npy'))

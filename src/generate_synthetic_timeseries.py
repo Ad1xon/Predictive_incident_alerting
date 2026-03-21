@@ -1,13 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+from numpy.typing import NDArray
 import config
 
 
 np.random.seed(config.SEED)
 random.seed(config.SEED)
 
-def generate_synthetic_timeseries(length=config.SERIES_LENGTH, num_incidents=config.NUM_INCIDENTS):
+def generate_synthetic_timeseries(length: int = config.SERIES_LENGTH, num_incidents: int = config.NUM_INCIDENTS) -> tuple[NDArray[np.int_], NDArray[np.float64], NDArray[np.int_]]:
+    """Generates a synthetic cloud telemetry time series with injected traffic spikes and resource saturation incidents."""
     t = np.arange(length)
     base_signal = np.sin(2 * np.pi * t / 1440) * 10 + 50
     noise = np.random.normal(0, 2.0, length)

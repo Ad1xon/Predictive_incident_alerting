@@ -1,10 +1,19 @@
 import numpy as np
+from numpy.typing import NDArray
 
-def calculate_trend(y):
+def calculate_trend(y: NDArray[np.float64]) -> float:
+    """Calculates the linear slope (trend) of a 1-D array using a first-degree polynomial fit."""
     x = np.arange(len(y))
     return np.polyfit(x, y, 1)[0] if len(y) > 1 else 0
 
-def create_multiscale_sliding_window(series, labels, short_w=20, long_w=100, horizon=15):
+def create_multiscale_sliding_window(
+    series: NDArray[np.float64],
+    labels: NDArray[np.int_],
+    short_w: int = 20,
+    long_w: int = 100,
+    horizon: int = 15,
+) -> tuple[NDArray[np.float64], NDArray[np.int_]]:
+    """Extracts multiscale sliding-window features and forward-looking incident labels from a time series."""
     X, y = [], []
 
     for i in range(len(series) - long_w - horizon):

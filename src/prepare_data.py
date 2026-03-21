@@ -9,7 +9,8 @@ from collections import Counter
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def main():
+def main() -> None:
+    """Generates synthetic data, applies multiscale sliding windows, and saves train/test splits to disk."""
     logging.info("Creating directories...")
     os.makedirs(config.DATA_DIR, exist_ok=True)
     os.makedirs(config.MODELS_DIR, exist_ok=True)

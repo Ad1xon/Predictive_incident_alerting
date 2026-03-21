@@ -1,8 +1,18 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import precision_recall_curve, confusion_matrix, ConfusionMatrixDisplay
 
-def plot_predictions(t_test, series_test, y_test, y_pred_filtered, title="Predictive Maintenance Alerts", save_path=None):
+def plot_predictions(
+    t_test: NDArray[np.int_],
+    series_test: NDArray[np.float64],
+    y_test: NDArray[np.int_],
+    y_pred_filtered: NDArray[np.int_],
+    title: str = "Predictive Maintenance Alerts",
+    save_path: str | None = None,
+) -> None:
+    """Plots the sensor signal with actual incident regions and model alarm markers overlaid."""
     plt.figure(figsize=(15, 5))
     plt.plot(t_test, series_test, label='Sensor Signal', color='blue', alpha=0.6)
 
@@ -28,7 +38,8 @@ def plot_predictions(t_test, series_test, y_test, y_pred_filtered, title="Predic
         plt.show()
 
 
-def plot_feature_importances(model, feature_names, save_path=None):
+def plot_feature_importances(model: RandomForestClassifier, feature_names: list[str], save_path: str | None = None) -> None:
+    """Plots a ranked bar chart of Random Forest feature importances."""
     importances = model.feature_importances_
     indices = np.argsort(importances)[::-1]
 
@@ -54,7 +65,8 @@ def plot_feature_importances(model, feature_names, save_path=None):
         plt.show()
 
 
-def plot_pr_curve(y_true: np.ndarray, y_probs: np.ndarray, optimal_thresh: float, save_path: str = None) -> None:
+def plot_pr_curve(y_true: NDArray[np.int_], y_probs: NDArray[np.float64], optimal_thresh: float, save_path: str | None = None) -> None:
+    """Plots the Precision-Recall curve with the chosen operating threshold highlighted."""
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_probs)
 
     plt.figure(figsize=(8, 6))
@@ -77,7 +89,7 @@ def plot_pr_curve(y_true: np.ndarray, y_probs: np.ndarray, optimal_thresh: float
         plt.show()
 
 
-def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, title: str = "Confusion Matrix", save_path: str = None) -> None:
+def plot_confusion_matrix(y_true: NDArray[np.int_], y_pred: NDArray[np.int_], title: str = "Confusion Matrix", save_path: str | None = None) -> None:
     """Plots a heatmap of the confusion matrix."""
     cm = confusion_matrix(y_true, y_pred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Normal", "Incident"])
