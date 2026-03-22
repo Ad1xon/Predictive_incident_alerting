@@ -79,14 +79,10 @@ def main() -> None:
         f.write(f"Optimal Threshold (from Validation Set): {optimal_thresh:.3f}\n\n")
         f.write(model_report)
 
-    plot_predictions(t_test, series_test, y_test, y_pred_filtered,
-                     title=f"Predictive Maintenance: Dynamic Threshold ({optimal_thresh:.2f})",
-                     save_path=os.path.join(config.RESULTS_DIR, 'predictions_plot.png'))
+    plot_predictions(t_test, series_test, y_test, y_pred_filtered, title=f"Predictive Maintenance: Dynamic Threshold ({optimal_thresh:.2f})", save_path=os.path.join(config.RESULTS_DIR, 'predictions_plot.png'))
     plot_pr_curve(y_test, y_probs_test, optimal_thresh, save_path=os.path.join(config.RESULTS_DIR, 'pr_curve.png'))
-    plot_feature_importances(model, config.FEATURE_NAMES,
-                             save_path=os.path.join(config.RESULTS_DIR, 'feature_importances.png'))
-    plot_confusion_matrix(y_test, y_pred_raw, title=f"Confusion Matrix (Thresh: {optimal_thresh:.2f})",
-                          save_path=os.path.join(config.RESULTS_DIR, 'confusion_matrix.png'))
+    plot_feature_importances(model, config.FEATURE_NAMES, save_path=os.path.join(config.RESULTS_DIR, 'feature_importances.png'))
+    plot_confusion_matrix(y_test, y_pred_raw, title=f"Confusion Matrix (Thresh: {optimal_thresh:.2f})",save_path=os.path.join(config.RESULTS_DIR, 'confusion_matrix.png'))
 
     logging.info(f"Evaluation complete")
 
