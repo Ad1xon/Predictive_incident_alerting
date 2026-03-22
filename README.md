@@ -160,3 +160,13 @@ The repository includes a comprehensive `pytest` module (`tests/test_pipeline.py
   * Edge-case fallbacks for the dynamic thresholding engine.
   * End-to-end (E2E) smoke testing of the complete `Generate -> Window -> Train -> Evaluate` pipeline.
 
+---
+
+## Path to Production & Future Work
+
+While this repository demonstrates a robust baseline for predictive alerting, I think deploying this to a live cloud environment (e.g., AWS, GCP) would involve several architectural evolutions:
+
+* **Real-Time Streaming Infrastructure:** The current pipeline processes static arrays. In production, the `create_multiscale_sliding_window` logic would be migrated to a streaming processing engine to ingest live telemetry from Kafka and emit predictions on the fly.
+* **Multivariate Scaling:** The current implementation uses a single, aggregated sensor metric. Future iterations would ingest a multivariate feature space (CPU, Memory, Network I/O, Disk Queue Length) to capture cross-metric correlations (e.g., a memory leak causing subsequent CPU thrashing).
+* **Alert Explainability (XAI):** When an SRE receives a pager alert at 3:00 AM, they need context - the alert payload would include the top contributing features (e.g., *"Warning: Incident predicted in 10m. Primary driver: Short_p99_Latency spiked 400%"*).
+* **Human-in-the-Loop Feedback:** Real-world anomalies constantly evolve (Concept Drift). The alerting dashboard should include a mechanism for SREs to flag alerts as "Helpful" or "False Alarm." This operational feedback loop would be logged directly into a Feature Store to act as ground-truth labels for automated, continuous model retraining.
