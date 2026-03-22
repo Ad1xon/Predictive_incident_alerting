@@ -43,9 +43,11 @@ def find_optimal_threshold(y_true: NDArray[np.int_], y_probs: NDArray[np.float64
 
 def main() -> None:
     """Evaluates the trained model on the test set with dynamic thresholding and alarm cooldown."""
-    logging.info("Loading test data...")
+    logging.info("Loading validation and test data...")
     try:
         model = joblib.load(config.MODEL_PATH)
+        X_val = np.load(os.path.join(config.DATA_DIR, 'X_val.npy'))
+        y_val = np.load(os.path.join(config.DATA_DIR, 'y_val.npy'))
         X_test = np.load(os.path.join(config.DATA_DIR, 'X_test.npy'))
         y_test = np.load(os.path.join(config.DATA_DIR, 'y_test.npy'))
         t_test = np.load(os.path.join(config.DATA_DIR, 't_test.npy'))
@@ -56,30 +58,35 @@ def main() -> None:
 
     os.makedirs(config.RESULTS_DIR, exist_ok=True)
 
-    y_probs = model.predict_proba(X_test)[:, 1]
+    y_probs_val = model.predict_proba(X_val)[:, 1]
+    optimal_thresh = find_optimal_threshold(y_val, y_probs_val, target_precision=config.TARGET_PRECISION)
+    logging.info(f"Optimal threshold calculated from VALIDATION set: {optimal_thresh:.3f}")
 
-    pr_auc = average_precision_score(y_test, y_probs)
-    roc_auc = roc_auc_score(y_test, y_probs)
-    logging.info(f"Model AUC Metrics - PR-AUC: {pr_auc:.3f} | ROC-AUC: {roc_auc:.3f}")
+    y_probs_test = model.predict_proba(X_test)[:, 1]
 
-    optimal_thresh = find_optimal_threshold(y_test, y_probs, target_precision=config.TARGET_PRECISION)
-    logging.info(f"Optimal threshold calculated: {optimal_thresh:.3f}")
+    pr_auc = average_precision_score(y_test, y_probs_test)
+    roc_auc = roc_auc_score(y_test, y_probs_test)
+    logging.info(f"Test Set AUC Metrics - PR-AUC: {pr_auc:.3f} | ROC-AUC: {roc_auc:.3f}")
 
-    y_pred_raw = (y_probs >= optimal_thresh).astype(int)
+    y_pred_raw = (y_probs_test >= optimal_thresh).astype(int)
     y_pred_filtered = apply_alarm_cooldown(y_pred_raw, config.COOLDOWN_STEPS)
 
     model_report = classification_report(y_test, y_pred_raw, labels=[0, 1], target_names=["Normal", "Incident"])
 
-    logging.info(f"\nMODEL EVALUATION (Raw Predictions):\n{model_report}")
+    logging.info(f"\nMODEL EVALUATION ON TEST SET (Raw Predictions):\n{model_report}")
 
     with open(os.path.join(config.RESULTS_DIR, 'classification_report.txt'), 'w') as f:
-        f.write(f"Optimal Threshold: {optimal_thresh:.3f}\n\n")
+        f.write(f"Optimal Threshold (from Validation Set): {optimal_thresh:.3f}\n\n")
         f.write(model_report)
 
-    plot_predictions(t_test, series_test, y_test, y_pred_filtered, title=f"Predictive Maintenance: Dynamic Threshold ({optimal_thresh:.2f})", save_path=os.path.join(config.RESULTS_DIR, 'predictions_plot.png'))
-    plot_pr_curve(y_test, y_probs, optimal_thresh, save_path=os.path.join(config.RESULTS_DIR, 'pr_curve.png'))
-    plot_feature_importances(model, config.FEATURE_NAMES, save_path=os.path.join(config.RESULTS_DIR, 'feature_importances.png'))
-    plot_confusion_matrix(y_test, y_pred_raw, title=f"Confusion Matrix (Thresh: {optimal_thresh:.2f})", save_path=os.path.join(config.RESULTS_DIR, 'confusion_matrix.png'))
+    plot_predictions(t_test, series_test, y_test, y_pred_filtered,
+                     title=f"Predictive Maintenance: Dynamic Threshold ({optimal_thresh:.2f})",
+                     save_path=os.path.join(config.RESULTS_DIR, 'predictions_plot.png'))
+    plot_pr_curve(y_test, y_probs_test, optimal_thresh, save_path=os.path.join(config.RESULTS_DIR, 'pr_curve.png'))
+    plot_feature_importances(model, config.FEATURE_NAMES,
+                             save_path=os.path.join(config.RESULTS_DIR, 'feature_importances.png'))
+    plot_confusion_matrix(y_test, y_pred_raw, title=f"Confusion Matrix (Thresh: {optimal_thresh:.2f})",
+                          save_path=os.path.join(config.RESULTS_DIR, 'confusion_matrix.png'))
 
     logging.info(f"Evaluation complete")
 

@@ -1,5 +1,6 @@
 import os
 import sys
+import warnings
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 
@@ -31,7 +32,7 @@ def test_calculate_trend() -> None:
 def test_create_multiscale_sliding_window_output_shape() -> None:
     """Ensures the feature matrix dimensions match the expected feature count and series length."""
     series = np.ones(200)
-    labels = np.zeros(200)
+    labels = np.zeros(200, dtype=int)
     short_w, long_w, horizon = 10, 50, 5
 
     X, y = create_multiscale_sliding_window(series, labels, short_w, long_w, horizon)
@@ -46,7 +47,7 @@ def test_create_multiscale_sliding_window_output_shape() -> None:
 def test_create_multiscale_sliding_window_label_correctness() -> None:
     """Validates that the target 'y' correctly identifies anomalies in the future horizon."""
     series = np.zeros(200)
-    labels = np.zeros(200)
+    labels = np.zeros(200, dtype=int)
 
     labels[100] = 1
 
@@ -76,7 +77,10 @@ def test_find_optimal_threshold_edge_cases() -> None:
 
     y_true_neg = np.array([0, 0, 0, 0])
     y_probs_neg = np.array([0.1, 0.2, 0.3, 0.4])
-    thresh_neg = find_optimal_threshold(y_true_neg, y_probs_neg, target_precision=0.90)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        thresh_neg = find_optimal_threshold(y_true_neg, y_probs_neg, target_precision=0.90)
 
     assert thresh_neg == 0.4
 

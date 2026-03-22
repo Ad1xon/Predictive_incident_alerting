@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 
 def main() -> None:
-    """Generates synthetic data, applies multiscale sliding windows, and saves train/test splits to disk."""
+    """Generates synthetic data, applies multiscale sliding windows, and saves train/val/test splits to disk."""
     logging.info("Creating directories...")
     os.makedirs(config.DATA_DIR, exist_ok=True)
     os.makedirs(config.MODELS_DIR, exist_ok=True)
@@ -28,18 +28,23 @@ def main() -> None:
 
     logging.info(f"Full Dataset Class distribution: {Counter(y)}")
 
-    split_index = int(len(X) * 0.7)
-    X_train, X_test = X[:split_index], X[split_index:]
-    y_train, y_test = y[:split_index], y[split_index:]
+    # 3-way split: 70% Train, 15% Val, 15% Test
+    split_idx_1 = int(len(X) * 0.70)
+    split_idx_2 = int(len(X) * 0.85)
 
-    test_start_index = split_index + config.LONG_WINDOW
+    X_train, X_val, X_test = X[:split_idx_1], X[split_idx_1:split_idx_2], X[split_idx_2:]
+    y_train, y_val, y_test = y[:split_idx_1], y[split_idx_1:split_idx_2], y[split_idx_2:]
+
+    test_start_index = split_idx_2 + config.LONG_WINDOW
     t_test = t[test_start_index: test_start_index + len(y_test)]
     series_test = series[test_start_index: test_start_index + len(y_test)]
 
     logging.info("Saving datasets...")
     np.save(os.path.join(config.DATA_DIR, 'X_train.npy'), X_train)
+    np.save(os.path.join(config.DATA_DIR, 'X_val.npy'), X_val)
     np.save(os.path.join(config.DATA_DIR, 'X_test.npy'), X_test)
     np.save(os.path.join(config.DATA_DIR, 'y_train.npy'), y_train)
+    np.save(os.path.join(config.DATA_DIR, 'y_val.npy'), y_val)
     np.save(os.path.join(config.DATA_DIR, 'y_test.npy'), y_test)
     np.save(os.path.join(config.DATA_DIR, 't_test.npy'), t_test)
     np.save(os.path.join(config.DATA_DIR, 'series_test.npy'), series_test)

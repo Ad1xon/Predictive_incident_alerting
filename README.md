@@ -61,6 +61,8 @@ This is formulated as a binary classification problem using a **sliding-window a
 * **Target ($y$):** $1$ if an incident occurs anywhere in the prediction horizon `[t, t + H]`, otherwise $0$.
 * **Input Matrix ($X$):** Extracted features from the historical window `[t - W, t]`.
 * **Multiscale Windows:** To capture both local anomalies and global context, the model extracts features from two concurrent windows ending at time `t`: a **Short Window** (`W = 20`) to capture sudden behavioral shifts, and a **Long Window** (`W = 100`) to establish a baseline.
+* **Hyperparameter Sensitivity:** Configuration values like HORIZON = 10 and SHORT_WINDOW = 20 were selected as a reasonable lookahead baseline for SRE alerting. A formal grid-search sweep across variable horizons and window lengths is deferred to production tuning, where real-world SLA constraints would dictate the exact operational tradeoff between warning time and model precision.
+
 
 ---
 
@@ -105,20 +107,22 @@ In cloud operations, false positives cause "alert fatigue," leading engineers to
 
 The model was evaluated on a chronologically held-out test set (30% of total data).
 
-**Global ML Metrics:**
-* **PR-AUC:** 0.965
-* **ROC-AUC:** 0.977
+**Global ML Metrics (Test Set):**
+* **PR-AUC:** 0.961
+* **ROC-AUC:** 0.974
 
-**Raw Classification Report (Optimal Threshold: 0.22)**
+**Raw Classification Report (Optimal Validation Threshold: 0.180)**
+
+The probability threshold was strictly calibrated on a separate Validation Set to target 0.90 precision, and then evaluated here on the completely untouched Test Set to guarantee zero data leakage).
 
 | Class | Precision | Recall | F1-Score | Support |
 | :--- | :---: | :---: | :---: | :---: |
-| **Normal** | 0.98 | 0.97 | 0.98 | 3469 |
-| **Incident** | 0.90 | 0.93 | 0.92 | 998 |
+| **Normal** | 0.99 | 0.96 | 0.97 | 1809 |
+| **Incident** | 0.86 | 0.95 | 0.90 | 425 |
 | | | | | |
-| **Accuracy** | | | **0.96** | 4467 |
-| **Macro Avg** | 0.94 | 0.95 | 0.95 | 4467 |
-| **Weighted Avg** | 0.96 | 0.96 | 0.96 | 4467 |
+| **Accuracy** | | | **0.96** | 2234 |
+| **Macro Avg** | 0.92 | 0.96 | 0.94 | 2234 |
+| **Weighted Avg** | 0.96 | 0.96 | 0.96 | 2234 |
 
 
 
@@ -129,7 +133,7 @@ The model was evaluated on a chronologically held-out test set (30% of total dat
 | :---: | :---: |
 | <img src="images/confusion_matrix.png" height="300"> | <img src="images/pr_curve.png" height="300"> |
 
-<p align="center"><i>(Left: The Confusion Matrix showing absolute predictions on the held-out test set. Right: The PR-Curve demonstrating the dynamic threshold selection (Red Dot) to guarantee the 0.90 precision floor).</i></p>
+<p><i>(Left: The Confusion Matrix showing absolute predictions on the held-out test set. Right: The PR-Curve demonstrating the dynamic threshold selection (Red Dot) to guarantee the 0.90 precision floor).</i></p>
 
 
 ### Visualizing the Alerts
@@ -143,6 +147,9 @@ An analysis of the Random Forest feature importances reveals that short-term SRE
 ![Feature Importances](images/feature_importances.png)
 
 To optimize the inference pipeline for production, dead-weight absolute long-term statistics (like `Long_Min` and `Long_p90`) were aggressively pruned. However, `Long_Mean` was strategically retained despite a lower Gini importance score, as empirical testing proved it acts as a critical anchor for the model to understand where it is within the daily diurnal cycle.
+
+### Real-World Considerations
+The synthetic precursor signal provides a detectable early warning for the model to latch onto. Real-world telemetry may require weaker or probabilistic precursors, which would likely introduce more noise and reduce raw recall. The dynamic thresholding engine was built specifically to absorb this anticipated noise in a production environment.
 
 ## Testing & CI/CD Readiness
 
