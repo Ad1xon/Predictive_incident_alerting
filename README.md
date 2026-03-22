@@ -61,7 +61,7 @@ This is formulated as a binary classification problem using a **sliding-window a
 * **Target ($y$):** $1$ if an incident occurs anywhere in the prediction horizon `[t, t + H]`, otherwise $0$.
 * **Input Matrix ($X$):** Extracted features from the historical window `[t - W, t]`.
 * **Multiscale Windows:** To capture both local anomalies and global context, the model extracts features from two concurrent windows ending at time `t`: a **Short Window** (`W = 20`) to capture sudden behavioral shifts, and a **Long Window** (`W = 100`) to establish a baseline.
-* **Hyperparameter Sensitivity:** Configuration values like HORIZON = 10 and SHORT_WINDOW = 20 were selected as a reasonable lookahead baseline for SRE alerting. A formal grid-search sweep across variable horizons and window lengths is deferred to production tuning, where real-world SLA constraints would dictate the exact operational tradeoff between warning time and model precision.
+* **Hyperparameter Sensitivity:** Configuration values like `HORIZON = 10` and `SHORT_WINDOW = 20` were selected as a reasonable lookahead baseline for SRE alerting. A formal grid-search sweep across variable horizons and window lengths is deferred to production tuning, where real-world SLA constraints would dictate the exact operational tradeoff between warning time and model precision.
 
 
 ---
@@ -87,7 +87,7 @@ Raw time-domain statistics (like Max/Min) are often insufficient for noisy cloud
 ### Model Selection
 The core model is a **Random Forest Classifier**, optimized for PR-AUC.
 
-  * **Why Random Forest over Gradient Boosting (XGBoost)?** During optimization, an XGBoost architecture was tested. However, on this dataset, XGBoost proved prone to overfitting the training noise and crashing on anomaly-free cross-validation folds. Random Forest natively smoothed over the noise and provided vastly superior robustness.
+  * **Why Random Forest over Gradient Boosting (XGBoost)?** During optimization, an XGBoost architecture was tested. However, on this dataset, XGBoost proved prone to overfitting the training noise and crashing on anomaly-free cross-validation folds. Random Forest smoothed over the noise and provided superior robustness.
   * **Establishing a Baseline:** Before deploying the Random Forest, a standard `LogisticRegression` model was evaluated using cross-validation. The Random Forest outperformed the linear baseline in PR-AUC, confirming that the multiscale features contain non-linear interactions requiring a tree-based approach.
   * **Preventing Temporal Leakage:** Hyperparameter tuning utilizes `TimeSeriesSplit` rather than standard K-Fold CV. This strictly enforces chronological training boundaries, ensuring the model never "peeks" at future data.
 
