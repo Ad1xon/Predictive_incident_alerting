@@ -1,0 +1,8 @@
+
+============================================================
+PER-INCIDENT-TYPE DETECTION ANALYSIS
+============================================================
+  cascading_failure         | Detected: 3/3 (100%)
+  memory_leak               | Detected: 1/1 (100%)
+  resource_saturation       | Detected: 1/1 (100%)
+  traffic_spike             | Detected: 3/3 (100%)

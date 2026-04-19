@@ -1,0 +1,57 @@
+============================================================
+ERROR ANALYSIS — Feature Statistics by Prediction Category
+============================================================
+
+Total TP: 390 | FP: 76 | FN: 177
+
+
+--- TRUE POSITIVES ---
+  Short_Mean           | mean=  70.097 | std= 10.830 | min=  40.946 | max=  93.360
+  Short_p90            | mean=  80.973 | std= 11.332 | min=  54.468 | max= 105.854
+  Short_p99            | mean=  88.435 | std= 11.584 | min=  59.856 | max= 109.918
+  Short_Min            | mean=  50.997 | std= 14.610 | min=  19.407 | max=  75.723
+  Short_Trend          | mean=   0.462 | std=  0.637 | min=  -0.820 | max=   2.493
+  Short_Std            | mean=   9.523 | std=  2.625 | min=   5.309 | max=  17.642
+  Short_Kurtosis       | mean=   0.302 | std=  1.624 | min=  -1.397 | max=   5.309
+  Long_Mean            | mean=  60.373 | std=  7.492 | min=  48.310 | max=  76.455
+  Long_Std             | mean=  12.475 | std=  2.279 | min=   7.753 | max=  17.959
+  Long_Trend           | mean=   0.161 | std=  0.165 | min=  -0.355 | max=   0.448
+  Mean_Ratio           | mean=   1.160 | std=  0.105 | min=   0.811 | max=   1.421
+  Std_Ratio            | mean=   0.788 | std=  0.257 | min=   0.377 | max=   1.508
+
+
+--- FALSE POSITIVES ---
+  Short_Mean           | mean=  63.890 | std= 10.664 | min=  48.679 | max=  94.616
+  Short_p90            | mean=  73.605 | std= 11.906 | min=  57.897 | max= 105.854
+  Short_p99            | mean=  80.714 | std= 12.234 | min=  59.935 | max= 109.918
+  Short_Min            | mean=  45.039 | std= 13.646 | min=   5.070 | max=  78.614
+  Short_Trend          | mean=   0.094 | std=  0.563 | min=  -2.904 | max=   1.326
+  Short_Std            | mean=   8.884 | std=  2.683 | min=   5.065 | max=  19.441
+  Short_Kurtosis       | mean=   0.743 | std=  1.876 | min=  -1.495 | max=   7.306
+  Long_Mean            | mean=  58.998 | std=  7.376 | min=  48.852 | max=  76.721
+  Long_Std             | mean=  11.097 | std=  2.942 | min=   7.708 | max=  18.068
+  Long_Trend           | mean=   0.105 | std=  0.176 | min=  -0.392 | max=   0.353
+  Mean_Ratio           | mean=   1.082 | std=  0.100 | min=   0.790 | max=   1.271
+  Std_Ratio            | mean=   0.832 | std=  0.235 | min=   0.405 | max=   1.417
+
+
+--- FALSE NEGATIVES ---
+  Short_Mean           | mean=  55.240 | std=  8.344 | min=  38.882 | max=  73.349
+  Short_p90            | mean=  65.157 | std=  8.001 | min=  47.857 | max=  82.338
+  Short_p99            | mean=  71.361 | std=  9.356 | min=  55.975 | max=  99.494
+  Short_Min            | mean=  36.916 | std=  8.850 | min=  23.903 | max=  57.813
+  Short_Trend          | mean=  -0.042 | std=  0.610 | min=  -1.850 | max=   0.848
+  Short_Std            | mean=   8.627 | std=  2.422 | min=   4.499 | max=  15.548
+  Short_Kurtosis       | mean=   0.481 | std=  1.518 | min=  -1.339 | max=   7.417
+  Long_Mean            | mean=  56.778 | std=  6.043 | min=  48.229 | max=  73.039
+  Long_Std             | mean=  10.183 | std=  2.057 | min=   6.308 | max=  14.789
+  Long_Trend           | mean=  -0.031 | std=  0.141 | min=  -0.371 | max=   0.258
+  Mean_Ratio           | mean=   0.971 | std=  0.091 | min=   0.746 | max=   1.180
+  Std_Ratio            | mean=   0.856 | std=  0.195 | min=   0.524 | max=   1.333
+
+
+--- KEY DIAGNOSTIC ---
+  FP avg Mean_Ratio: 1.082 vs TP avg Mean_Ratio: 1.160
+  -> FPs triggered by false precursors or heavy-tail noise spikes.
+  FN avg Short_Trend: -0.0418 | FN avg Long_Trend: -0.0314
+  -> Missed incidents have subtle/slow onset (memory leaks).

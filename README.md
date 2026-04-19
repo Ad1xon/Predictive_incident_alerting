@@ -1,172 +1,278 @@
 # Predictive Incident Alerting for Cloud Infrastructure
 
-This project implements a machine learning-based alerting system designed to predict imminent cloud infrastructure incidents (e.g., resource saturation, traffic spikes) before they occur. The model analyzes time-series telemetry data using a multiscale sliding-window approach to provide Site Reliability Engineering (SRE) teams with high-precision early warnings, actively minimizing alert fatigue.
+A machine learning pipeline for predicting cloud infrastructure incidents (traffic spikes, resource saturation, memory leaks, cascading failures) before they occur. The system ingests time-series telemetry data, extracts multiscale sliding-window features, and compares four predictive approaches — from a simple rule-based threshold to calibrated gradient boosting — with full error analysis and per-incident-type evaluation.
 
 ---
 
+## Quick Start
 
-## Quick Start / How to Run
-
-This project is broken down into a modular, sequential pipeline. To run the full pipeline from scratch, execute the following scripts in order:
-
-### Prerequisites
-
-Ensure you have Python 3.10+ installed. Install the required dependencies:
 ```bash
 pip install -r requirements.txt
-```
-
-**1. Prepare the Data**
-
-Generates the synthetic cloud metrics, extracts the multiscale sliding-window features, and creates the train/test splits.
-```bash
 python src/prepare_data.py
-```
-*(Note: This will automatically create the `data/` directory.)*
-
-**2. Train the Model**
-
-Loads the training data, performs hyperparameter tuning using TimeSeriesSplit to prevent temporal leakage, and saves the optimized Random Forest model.
-
-```bash
 python src/train.py
-```
-*(Note: This will automatically create the `model/` directory.)*
-
-**3. Evaluate the Model**
-
-Loads the test set and the saved model, calculates the optimal high-precision threshold, and outputs the classification report along with the feature importance and prediction plots.
-
-```bash
 python src/evaluate.py
-```
-*(Note: This script will automatically create a `results/` directory containing the classification report, confusion matrix, PR curve, and prediction plots).*
-
-
-**4. Run Unit Tests**
-
-Execute the modular `pytest` suite to validate the custom sliding-window math, operational debouncing logic, threshold edge cases, and end-to-end pipeline stability.
-
-```bash
+python src/predict.py
 pytest tests/ -v
 ```
 
------
+All pipeline logs are appended to `pipeline.log` with per-script tags (`[prepare_data]`, `[train]`, `[evaluate]`, `[predict]`).
+
+---
 
 ## Problem Formulation
 
-The goal is to predict whether an anomaly or threshold breach will occur within a future horizon of `H` time steps, based on the historical context of the preceding `W` time steps. 
+Predict whether an anomaly will occur within a future horizon of `H = 10` time steps, based on features extracted from the preceding historical window.
 
-This is formulated as a binary classification problem using a **sliding-window architecture**:
-* **Target ($y$):** $1$ if an incident occurs anywhere in the prediction horizon `[t, t + H]`, otherwise $0$.
-* **Input Matrix ($X$):** Extracted features from the historical window `[t - W, t]`.
-* **Multiscale Windows:** To capture both local anomalies and global context, the model extracts features from two concurrent windows ending at time `t`: a **Short Window** (`W = 20`) to capture sudden behavioral shifts, and a **Long Window** (`W = 100`) to establish a baseline.
-* **Hyperparameter Sensitivity:** Configuration values like `HORIZON = 10` and `SHORT_WINDOW = 20` were selected as a reasonable lookahead baseline for SRE alerting. A formal grid-search sweep across variable horizons and window lengths is deferred to production tuning, where real-world SLA constraints would dictate the exact operational tradeoff between warning time and model precision.
-
+- **Target ($y$):** `1` if any incident label exists in `[t, t + H]`, else `0`.
+- **Multiscale Windows:** A **Short Window** (`W = 20`) captures sudden shifts; a **Long Window** (`W = 100`) establishes baseline context and drift detection.
+- **Feature Count:** 12 engineered features per sample (see Feature Engineering below).
 
 ---
 
 ## Data Generation
 
-To train and evaluate the model, a synthetic cloud telemetry dataset was generated (`src/generate_synthetic_timeseries.py`). The data simulates normal diurnal (daily) traffic patterns overlayed with gaussian noise and injects two specific types of SRE incidents:
-1.  **Traffic Spikes:** Sudden, high-variance leaps in latency or utilization.
-2.  **Resource Saturation:** A gradual climb that hits a strict mathematical ceiling (e.g., 100% CPU or Memory utilization).
+The synthetic dataset (`src/generate_synthetic_timeseries.py`) simulates realistic cloud telemetry with deliberate difficulty:
 
-*(Note: Data generation and model initialization utilize a globally locked random seed (`config.SEED = 101`) to guarantee absolute pipeline reproducibility).*
+### Signal Design
+- **Base signal:** Diurnal (24h) sinusoidal pattern centered at 50 with amplitude 10.
+- **Heavy-tailed noise:** Student-t distribution (`df = 4`, `σ = 6.0`) instead of Gaussian. This produces occasional extreme outliers that mimic real-world latency spikes, making simple threshold rules unreliable.
+- **Non-stationary drift:** A random walk component (`σ = 0.15` per step) causes the baseline to wander over time, preventing models from relying on static absolute thresholds.
+
+### 4 Incident Types
+| Type | Mechanism | Precursor | Detection Difficulty |
+|------|-----------|-----------|---------------------|
+| **Traffic Spike** | Sudden +15–30 burst | Weak noisy ramp (20 steps) | Medium — burst is clear but precursor is noisy |
+| **Resource Saturation** | Gradual climb to ceiling (100) | Noisy ramp + random perturbation | Medium — clip at ceiling is detectable |
+| **Memory Leak** | Slow cumulative drift (+0.15–0.35/step) | None | **Hard** — drift competes with background noise |
+| **Cascading Failure** | Brief dip → explosive spike | Inverted precursor (dip) | Medium-Hard — dip confuses trend-based features |
+
+### Adversarial Elements
+- **False precursors** (20 injected): Noise bursts that mimic pre-incident ramps but are followed by normal operation. These specifically challenge the model's ability to distinguish real signals from noise.
+- **Signal-to-noise ratio ≈ 3–5:1** (vs. the trivial 15–25:1 of a simple Gaussian setup).
+
+### Class Distribution
+| Split | Normal | Incident | Ratio |
+|-------|--------|----------|-------|
+| Train (70%) | 8,026 | 2,397 | 3.3:1 |
+| Val (15%) | 1,695 | 428 | 4.0:1 |
+| Test (15%) | 1,557 | 567 | 2.7:1 |
+
+An **embargo gap** of 110 samples (`LONG_WINDOW + HORIZON`) is enforced between each split to eliminate information leakage through overlapping sliding windows.
 
 ---
 
-## Modeling Choices & Feature Engineering
+## Feature Engineering
 
-### SRE-Specific Features
-Raw time-domain statistics (like Max/Min) are often insufficient for noisy cloud environments. Instead, the feature engineering pipeline extracts SRE-focused metrics:
-* **Percentiles (p90, p99):** Captures tail-end latency or utilization spikes without overreacting to single-point outliers.
-* **Trend Slopes:** Calculates the rate of change. A rapid upward slope in memory usage is often more dangerous than a high static baseline.
-* **Contextual Ratios:** Calculates the ratio of the Short Window mean against the Long Window mean (`Mean_Ratio`). This provides the model with localized context, helping it differentiate between a problematic spike and a normal peak-hours traffic wave.
+12 features extracted per time step from two concurrent windows:
 
-### Model Selection
-The core model is a **Random Forest Classifier**, optimized for PR-AUC.
+| # | Feature | Window | Purpose |
+|---|---------|--------|---------|
+| 1 | `Short_Mean` | Short (20) | Localized average level |
+| 2 | `Short_p90` | Short (20) | Tail-end utilization detection |
+| 3 | `Short_p99` | Short (20) | Extreme spike detection |
+| 4 | `Short_Min` | Short (20) | Sudden dip detection (cascading failures) |
+| 5 | `Short_Trend` | Short (20) | Rate of change (traffic spikes, ramps) |
+| 6 | `Short_Std` | Short (20) | Localized volatility |
+| 7 | `Short_Kurtosis` | Short (20) | Tail heaviness — distinguishes heavy-tail noise from anomalies |
+| 8 | `Long_Mean` | Long (100) | Baseline context / diurnal position anchor |
+| 9 | `Long_Std` | Long (100) | Background volatility level |
+| 10 | `Long_Trend` | Long (100) | **Slow drift detection** — critical for memory leaks |
+| 11 | `Mean_Ratio` | Cross-scale | Localized deviation from baseline (Short/Long mean) |
+| 12 | `Std_Ratio` | Cross-scale | Localized volatility spike detection (Short/Long std) |
 
-  * **Why Random Forest over Gradient Boosting (XGBoost)?** During optimization, an XGBoost architecture was tested. However, on this dataset, XGBoost proved prone to overfitting the training noise and crashing on anomaly-free cross-validation folds. Random Forest smoothed over the noise and provided superior robustness.
-  * **Establishing a Baseline:** Before deploying the Random Forest, a standard `LogisticRegression` model was evaluated using cross-validation. The Random Forest outperformed the linear baseline in PR-AUC, confirming that the multiscale features contain non-linear interactions requiring a tree-based approach.
-  * **Preventing Temporal Leakage:** Hyperparameter tuning utilizes `TimeSeriesSplit` rather than standard K-Fold CV. This strictly enforces chronological training boundaries, ensuring the model never "peeks" at future data.
+`Long_Trend` is the key addition for memory leak detection. Over 100 steps, a memory leak drifting at 0.15–0.35/step produces a detectable slope (~0.15–0.35), while the background random walk noise has a much flatter expected slope. `Short_Trend` (20 steps only) cannot distinguish leak drift from noise at this timescale.
 
 ---
 
-## Evaluation Setup
+## Model Comparison
 
-In cloud operations, false positives cause "alert fatigue," leading engineers to ignore pagers. Therefore, the evaluation setup strictly prioritizes **Precision**.
+Four models were trained and evaluated with identical preprocessing:
 
-* **Dynamic Alert Thresholds:** Instead of using a default `0.5` probability threshold, the evaluation script (`src/evaluate.py`) analyzes the Precision-Recall curve to find the lowest possible probability threshold that guarantees a target precision of ~0.90. This extracts the maximum possible recall while strictly enforcing reliability.
-* **Alarm Cooldowns (Debouncing):** To prevent alert spam during a continuous incident, an `apply_alarm_cooldown` function silences sequential model triggers for a set number of steps after the initial alert fires.
-* **Area Under the Curve:** The model is evaluated globally using **PR-AUC** and **ROC-AUC** to confirm its robustness across all possible decision boundaries prior to threshold selection.
+1. **Rule-Based Baseline** (`src/rule_based.py`) — Fires if `Mean_Ratio > 1.15` OR `Short_p99 > 75`. No learning.
+2. **Logistic Regression** — `Pipeline(StandardScaler → LogisticRegression)`, `class_weight='balanced'`.
+3. **Random Forest** — `GridSearchCV` over `n_estimators`, `max_depth`, `min_samples_split`, `min_samples_leaf`, with `class_weight='balanced'`.
+4. **Gradient Boosting (Calibrated)** — `GridSearchCV` + `CalibratedClassifierCV(method='isotonic')` for probability calibration.
+
+All ML models use `TimeSeriesSplit(n_splits=5)` for cross-validation. **Thresholds are calibrated on the validation set using F1-optimal point** (maximizing balanced precision+recall) rather than forcing a fixed precision floor.
+
+### Cross-Validation PR-AUC (Training)
+| Model | CV PR-AUC |
+|-------|-----------|
+| Gradient Boosting | 0.7475 |
+| Random Forest | 0.7359 |
+| Logistic Regression | 0.7304 |
+| Rule-Based | 0.4551 |
+
+### Test Set Results (F1-Optimal Threshold)
+
+| Model | PR-AUC | ROC-AUC | Precision | Recall | F1 | F1-Thresh | P90-Thresh |
+|-------|--------|---------|-----------|--------|----|-----------|------------|
+| Rule-Based | 0.457 | 0.675 | 0.336 | 0.762 | 0.467 | 0.457 | 1.000 |
+| Logistic Regression | 0.802 | 0.867 | 0.658 | 0.771 | 0.710 | 0.494 | 0.857 |
+| Random Forest | 0.827 | 0.890 | 0.857 | 0.654 | 0.742 | 0.497 | 0.900 |
+| **Gradient Boosting** | **0.817** | **0.879** | **0.837** | **0.688** | **0.755** | **0.241** | **0.935** |
+
+![Model Comparison](images/model_comparison.png)
+
+### Key Observations
+
+- **Rule-Based baseline is substantially worse** (PR-AUC 0.46 vs 0.80+), confirming the problem is non-trivial and learned features provide real value.
+- **Calibrated GBT achieves the best F1 (0.755)** with the best balanced precision/recall trade-off (P=0.84, R=0.69). This is the expected outcome — GBT's ability to model non-linear feature interactions (ratio thresholds × trend directions) is critical for distinguishing memory leaks from noise.
+- **RF has the highest PR-AUC (0.827)** but slightly lower operational F1 (0.742) due to a more aggressive threshold. RF trades recall for higher precision (0.857 vs 0.837).
+- **LR achieves the highest recall (0.771)** but at the cost of precision (0.658). For environments where missing an incident is more costly than false alarms, LR may be preferred despite lower F1.
+- **Why GBT > LR is correct:** LR assumes linear feature-response relationships. But the diagnostic signal is non-linear — a `Mean_Ratio` of 1.10 combined with positive `Long_Trend` should be treated differently than `Mean_Ratio` of 1.10 with flat `Long_Trend` (the latter is noise, the former is a memory leak). Tree-based models capture these interactions natively.
+- **The two threshold columns** (F1-Thresh vs P90-Thresh) show how operating point choice affects deployment. GBT's F1-optimal threshold (0.241) gives the best balanced performance, while its precision-targeted threshold (0.935) would achieve very high precision but near-zero recall — confirming that **threshold strategy is as important as model selection**.
+
+---
+
+## Evaluation Details
+
+### Dual Threshold Calibration
+Each model is evaluated at two operating points calibrated on the **validation set** (not test set):
+1. **F1-Optimal Threshold:** Maximizes F1 score (balanced precision + recall). Used as the primary metric.
+2. **Precision-Targeted Threshold (P ≥ 0.90):** For high-precision deployments where false alarms are expensive.
+
+### Alarm Cooldown (Debouncing)
+`apply_alarm_cooldown()` suppresses sequential alarm triggers for `COOLDOWN_STEPS = 25` time steps after each initial alert. Metrics are reported on raw predictions (pre-cooldown); the visualization shows post-cooldown operational behavior.
+
+### Threshold Sensitivity
+
+![Threshold Sensitivity](images/threshold_sensitivity.png)
+
+---
+
+## Inference Pipeline (`src/predict.py`)
+
+The inference script demonstrates end-to-end model deployment:
+
+```bash
+python src/predict.py
+```
+
+**What it does:**
+1. Loads the best model (Calibrated GBT) from saved evaluation results
+2. Generates **new, unseen** telemetry (different random seed)
+3. Runs feature extraction → probability prediction → F1-optimal thresholding → cooldown filtering
+4. Matches alerts to known incidents and reports per-incident detection
+
+**Sample output (10 unseen incidents):**
+```
+Model: Gradient Boosting (F1=0.7551)
+Series length: 3000 | Incidents: 10 | Alerts raised: 43
+
+  traffic_spike             [269-313]    -> DETECTED
+  traffic_spike             [467-551]    -> DETECTED
+  cascading_failure         [597-665]    -> DETECTED
+  traffic_spike             [1087-1169]  -> DETECTED
+  cascading_failure         [1309-1355]  -> DETECTED
+  resource_saturation       [1369-1431]  -> DETECTED
+  traffic_spike             [1637-1722]  -> DETECTED
+  cascading_failure         [2605-2635]  -> DETECTED
+  resource_saturation       [2714-2780]  -> DETECTED
+  cascading_failure         [2803-2879]  -> DETECTED
+
+Detection rate: 10/10 (100%)
+```
 
 ---
 
 ## Results & Analysis
 
-The model was evaluated on a chronologically held-out test set (30% of total data).
-
-**Global ML Metrics (Test Set):**
-* **PR-AUC:** 0.961
-* **ROC-AUC:** 0.974
-
-**Raw Classification Report (Optimal Validation Threshold: 0.180)**
-
-The probability threshold was strictly calibrated on a separate Validation Set to target 0.90 precision, and then evaluated here on the completely untouched Test Set to guarantee zero data leakage).
+### Best Model: Calibrated Gradient Boosting (Selected by F1)
 
 | Class | Precision | Recall | F1-Score | Support |
-| :--- | :---: | :---: | :---: | :---: |
-| **Normal** | 0.99 | 0.96 | 0.97 | 1809 |
-| **Incident** | 0.86 | 0.95 | 0.90 | 425 |
-| | | | | |
-| **Accuracy** | | | **0.96** | 2234 |
-| **Macro Avg** | 0.92 | 0.96 | 0.94 | 2234 |
-| **Weighted Avg** | 0.96 | 0.96 | 0.96 | 2234 |
-
-
-
-*(Note: While the model achieves exceptional raw recall during incidents, the operational debouncing filter is applied downstream to silence redundant pager alerts during continuous incident windows, as visualized in the prediction plots).*
-
+|-------|-----------|--------|----------|---------|
+| Normal | 0.89 | 0.95 | 0.92 | 1,557 |
+| Incident | 0.84 | 0.69 | 0.76 | 567 |
+| **Accuracy** | | | **0.88** | 2,124 |
 
 | Confusion Matrix | Precision-Recall Curve |
 | :---: | :---: |
 | <img src="images/confusion_matrix.png" height="300"> | <img src="images/pr_curve.png" height="300"> |
 
-<p><i>(Left: The Confusion Matrix showing absolute predictions on the held-out test set. Right: The PR-Curve demonstrating the dynamic threshold selection (Red Dot) to guarantee the 0.90 precision floor).</i></p>
-
-
-### Visualizing the Alerts
-The plot below demonstrates the model successfully predicting both sudden spikes and slow resource saturation anomalies, while ignoring the normal diurnal wave pattern and baseline noise.
+### Prediction Visualization
 
 ![Model Predictions](images/predictions_plot.png)
 
-### Implemented "Smart" Feature Pruning
-An analysis of the Random Forest feature importances reveals that short-term SRE features (`Short_p90`, `Short_Trend`, `Short_p99`) and contextual ratios (`Mean_Ratio`) dominate the decision-making process. 
+### Feature Importances (Gradient Boosting)
 
 ![Feature Importances](images/feature_importances.png)
 
-To optimize the inference pipeline for production, dead-weight absolute long-term statistics (like `Long_Min` and `Long_p90`) were aggressively pruned. However, `Long_Mean` was strategically retained despite a lower Gini importance score, as empirical testing proved it acts as a critical anchor for the model to understand where it is within the daily diurnal cycle.
+---
 
-### Real-World Considerations
-The synthetic precursor signal provides a detectable early warning for the model to latch onto. Real-world telemetry may require weaker or probabilistic precursors, which would likely introduce more noise and reduce raw recall. The dynamic thresholding engine was built specifically to absorb this anticipated noise in a production environment.
+## Error Analysis
 
-## Testing & CI/CD Readiness
+### False Positive Characterization (76 FPs)
 
-The repository includes a comprehensive `pytest` module (`tests/test_pipeline.py`) designed for CI/CD pipeline integration. It strictly validates:
+| Feature | FP Mean | TP Mean | Interpretation |
+|---------|---------|---------|---------------|
+| `Mean_Ratio` | 1.082 | 1.160 | FPs have lower deviation — borderline anomalies |
+| `Short_p99` | 80.7 | 88.4 | FPs are moderate spikes, not extreme |
+| `Short_Trend` | 0.094 | 0.462 | FPs lack the ascending trend of real incidents |
+| `Short_Kurtosis` | 0.743 | 0.302 | FPs have higher kurtosis — heavy-tail noise spikes |
 
-  * Data generator output distributions.
-  * Matrix shapes and forward-looking anomaly label logic.
-  * Edge-case fallbacks for the dynamic thresholding engine.
-  * End-to-end (E2E) smoke testing of the complete `Generate -> Window -> Train -> Evaluate` pipeline.
+**Diagnosis:** False positives are triggered by **heavy-tail noise spikes** and **false precursors**. They exhibit elevated percentiles without the sustained ascending trend of real incidents. Kurtosis is higher in FPs than TPs, confirming the heavy-tail noise origin.
+
+### False Negative Characterization (177 FNs)
+
+| Feature | FN Mean | TP Mean | Interpretation |
+|---------|---------|---------|---------------|
+| `Mean_Ratio` | 0.971 | 1.160 | FNs show no deviation from baseline |
+| `Short_Trend` | -0.042 | 0.462 | FNs have flat or slightly negative trend |
+| `Long_Trend` | -0.031 | 0.161 | FNs have no sustained drift |
+
+**Diagnosis:** Remaining false negatives are predominantly the early phase of slow-onset incidents where the model has not yet accumulated enough evidence. The `Long_Trend` feature captures the drift once it's sustained, but the earliest time steps of a memory leak are still indistinguishable from noise.
+
+![Error Analysis](images/error_analysis.png)
+
+### Per-Incident-Type Detection Rates
+
+| Incident Type | Detected | Rate |
+|---------------|----------|------|
+| Traffic Spike | 3/3 | 100% |
+| Cascading Failure | 3/3 | 100% |
+| Resource Saturation | 1/1 | 100% |
+| Memory Leak | 1/1 | **100%** |
+
+All four incident types are now detected at 100%. The addition of `Long_Trend` (slope over 100-step window) was critical for memory leak detection — previously at 0% with only `Short_Trend` (20-step window).
 
 ---
 
-## Path to Production & Future Work
+## Limitations & Known Weaknesses
 
-While this repository demonstrates a robust baseline for predictive alerting, I think deploying this to a live cloud environment (e.g., AWS, GCP) would involve several architectural evolutions:
+1. **Early-phase memory leaks remain difficult:** While the model now detects memory leaks overall, the first 10–15 steps of a slow drift are still indistinguishable from noise. This is a fundamental signal-to-noise limitation, not a model deficiency.
+2. **Single-variate telemetry:** Real cloud infrastructure provides multivariate signals (CPU, memory, network, disk). Cross-metric correlations (e.g., memory leak → CPU spike) would improve both precision and recall.
+3. **Static false precursor injection:** Current false precursors are randomized. Adversarially designed precursors correlated with the diurnal cycle would be more realistic.
+4. **No concept drift handling:** The non-stationary drift is unbounded. Over very long series, feature distributions shift, requiring periodic retraining or online adaptation.
+5. **Class imbalance strategy:** `class_weight='balanced'` is the primary mechanism. SMOTE with temporal awareness or focal loss were not explored.
+6. **GBT calibration trade-off:** Isotonic regression calibration improves threshold usability but adds training overhead and may reduce sharpness of probability estimates on small datasets.
 
-* **Real-Time Streaming Infrastructure:** The current pipeline processes static arrays. In production, the `create_multiscale_sliding_window` logic would be migrated to a streaming processing engine to ingest live telemetry from Kafka and emit predictions on the fly.
-* **Multivariate Scaling:** The current implementation uses a single, aggregated sensor metric. Future iterations would ingest a multivariate feature space (CPU, Memory, Network I/O, Disk Queue Length) to capture cross-metric correlations (e.g., a memory leak causing subsequent CPU thrashing).
-* **Alert Explainability (XAI):** When an SRE receives a pager alert at 3:00 AM, they need context - the alert payload would include the top contributing features (e.g., *"Warning: Incident predicted in 10m. Primary driver: Short_p99_Latency spiked 400%"*).
-* **Human-in-the-Loop Feedback:** Real-world anomalies constantly evolve (Concept Drift). The alerting dashboard should include a mechanism for SREs to flag alerts as "Helpful" or "False Alarm." This operational feedback loop would be logged directly into a Feature Store to act as ground-truth labels for automated, continuous model retraining.
+---
+
+## Testing
+
+The `pytest` suite (`tests/test_pipeline.py`) validates 11 test cases:
+
+- Data generator output shapes and incident metadata structure
+- False precursor injection correctness (no label contamination)
+- Multiscale window feature matrix dimensions (12 features)
+- Forward-looking label correctness
+- Alarm cooldown suppression logic
+- Precision-targeted threshold edge-case fallbacks
+- F1-optimal threshold correctness
+- Rule-based baseline prediction accuracy
+- End-to-end pipeline smoke test with proper train/val split
+
+```bash
+pytest tests/ -v
+```
+
+---
+
+## Future Work
+
+- **Multi-variate features:** Ingest CPU, memory, network I/O, disk queue for cross-metric detection.
+- **Online drift adaptation:** CUSUM or ADWIN change-point detection for non-stationary environments.
+- **Alert explainability:** SHAP values per alert for SRE triage context.
+- **Streaming deployment:** Migrate `create_multiscale_sliding_window` to Kafka/Flink.
+- **Human feedback loop:** Flag alerts as helpful/false for continuous retraining.

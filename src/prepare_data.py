@@ -1,22 +1,28 @@
 import os
+import json
 import numpy as np
 import logging
 import config
+from logging_config import setup_logging
 from generate_synthetic_timeseries import generate_synthetic_timeseries
 from create_sliding_window import create_multiscale_sliding_window
 from collections import Counter
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 
 def main() -> None:
-    """Generates synthetic data, applies multiscale sliding windows, and saves train/val/test splits to disk."""
+    """Generates synthetic data with embargo-gapped chronological train/val/test splits."""
+    setup_logging('prepare_data')
+
     logging.info("Creating directories...")
     os.makedirs(config.DATA_DIR, exist_ok=True)
     os.makedirs(config.MODELS_DIR, exist_ok=True)
 
-    logging.info("Generating synthetic data...")
-    t, series, labels = generate_synthetic_timeseries(length=config.SERIES_LENGTH, num_incidents=config.NUM_INCIDENTS)
+    logging.info("Generating synthetic data (4 incident types, heavy-tailed noise, drift, false precursors)...")
+    t, series, labels, incident_metadata = generate_synthetic_timeseries(
+        length=config.SERIES_LENGTH,
+        num_incidents=config.NUM_INCIDENTS,
+        num_false_precursors=config.NUM_FALSE_PRECURSORS,
+    )
 
     logging.info(f"Applying multi-scale sliding window (Short={config.SHORT_WINDOW}, Long={config.LONG_WINDOW}, H={config.HORIZON})...")
     X, y = create_multiscale_sliding_window(
@@ -26,18 +32,35 @@ def main() -> None:
         horizon=config.HORIZON
     )
 
-    logging.info(f"Full Dataset Class distribution: {Counter(y)}")
+    logging.info(f"Full Dataset — Class distribution: {Counter(y)}")
 
-    # 3-way split: 70% Train, 15% Val, 15% Test
-    split_idx_1 = int(len(X) * 0.70)
-    split_idx_2 = int(len(X) * 0.85)
+    gap = config.EMBARGO_GAP
+    total = len(X)
+    train_end = int(total * 0.70)
+    val_start = train_end + gap
+    val_end = int(total * 0.85)
+    test_start = val_end + gap
 
-    X_train, X_val, X_test = X[:split_idx_1], X[split_idx_1:split_idx_2], X[split_idx_2:]
-    y_train, y_val, y_test = y[:split_idx_1], y[split_idx_1:split_idx_2], y[split_idx_2:]
+    X_train = X[:train_end]
+    y_train = y[:train_end]
 
-    test_start_index = split_idx_2 + config.LONG_WINDOW
-    t_test = t[test_start_index: test_start_index + len(y_test)]
-    series_test = series[test_start_index: test_start_index + len(y_test)]
+    X_val = X[val_start:val_end]
+    y_val = y[val_start:val_end]
+
+    X_test = X[test_start:]
+    y_test = y[test_start:]
+
+    logging.info(f"Embargo gap: {gap} samples between each split")
+    logging.info(f"Train: {len(X_train)} | Val: {len(X_val)} | Test: {len(X_test)}")
+    logging.info(f"Train classes: {Counter(y_train)}")
+    logging.info(f"Val classes:   {Counter(y_val)}")
+    logging.info(f"Test classes:  {Counter(y_test)}")
+
+    test_series_start = test_start + config.LONG_WINDOW
+    t_test = t[test_series_start: test_series_start + len(y_test)]
+    series_test = series[test_series_start: test_series_start + len(y_test)]
+
+    test_meta = [m for m in incident_metadata if m["start"] >= test_series_start and m["end"] <= test_series_start + len(y_test)]
 
     logging.info("Saving datasets...")
     np.save(os.path.join(config.DATA_DIR, 'X_train.npy'), X_train)
@@ -48,6 +71,12 @@ def main() -> None:
     np.save(os.path.join(config.DATA_DIR, 'y_test.npy'), y_test)
     np.save(os.path.join(config.DATA_DIR, 't_test.npy'), t_test)
     np.save(os.path.join(config.DATA_DIR, 'series_test.npy'), series_test)
+
+    with open(os.path.join(config.DATA_DIR, 'incident_metadata.json'), 'w') as f:
+        json.dump(incident_metadata, f, indent=2)
+
+    with open(os.path.join(config.DATA_DIR, 'test_incident_metadata.json'), 'w') as f:
+        json.dump(test_meta, f, indent=2)
 
     logging.info("Data preparation complete.")
 

@@ -1,10 +1,12 @@
-Optimal Threshold (from Validation Set): 0.180
+Best Model: Gradient Boosting
+F1-Optimal Threshold (from Validation Set): 0.241
+Precision-Targeted Threshold: 0.935
 
               precision    recall  f1-score   support
 
-      Normal       0.99      0.96      0.97      1809
-    Incident       0.86      0.95      0.90       425
+      Normal       0.89      0.95      0.92      1557
+    Incident       0.84      0.69      0.76       567
 
-    accuracy                           0.96      2234
-   macro avg       0.92      0.96      0.94      2234
-weighted avg       0.96      0.96      0.96      2234
+    accuracy                           0.88      2124
+   macro avg       0.87      0.82      0.84      2124
+weighted avg       0.88      0.88      0.88      2124
